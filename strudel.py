@@ -55,7 +55,7 @@ def indicator( pArray, pInterval ):
 	aOut = [] 
 
 	for i,value in enumerate( pArray ):
-		aOut.append( [ z for z in compress( range(len(pInterval)), map( lambda x: x[0] <= value < x[1], pInterval ) ) ][0] ) 
+		aOut.append( ([ z for z in compress( range(len(pInterval)), map( lambda x: x[0] <= value < x[1], pInterval ) ) ] or [0] )[0] ) 
 
 	return aOut
 
@@ -83,24 +83,24 @@ def generate_linkage( num_clusters = 3, num_children = 3, num_examples = 20):
 	while raw.any():
 		
 		pCluster, raw = raw[:num_clusters], raw[num_clusters:]
-		response_matrix.append( classify_by_logistic( numpy.dot( aBeta, pCluster ) ) )
+		response_matrix.append( classify_by_logistic( numpy.dot( aBeta, pCluster ), iClass = 5 ) )
 
 	return predictor_matrix, response_matrix
 
 if __name__ == "__main__":
 
-	predictor, response = generate_linkage()
+	predictor, response = generate_linkage( num_clusters =3, num_children=10, num_examples=20 )
 
 	csvw = csv.writer( sys.stdout, csv.excel_tab )
 
 	csvw.writerow( ["#Predictor"] )
 
-	for item in predictor:
-		csvw.writerow( item )
+	for i, item in enumerate( predictor ): 
+		csvw.writerow( ["x" +str(i)] + list( item ) )
 
 	csvw.writerow( ["#Response"])
 
-	for item in response:
-		csvw.writerow( item )
+	for i, item in enumerate( response ):
+		csvw.writerow( ["y" + str(i)]  + list ( item ) )
 
 
