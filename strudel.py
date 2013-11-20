@@ -10,7 +10,7 @@ import csv
 import sys 
 
 ## namespace for distributions 
-from scipy.stats import invgamma, norm, uniform 
+from scipy.stats import invgamma, norm, uniform, logistic 
 
 def generate_clustered_data( num_clusters = 3, num_children = 3, num_examples = 20):
 	"""
@@ -55,15 +55,15 @@ def indicator( pArray, pInterval ):
 	aOut = [] 
 
 	for i,value in enumerate( pArray ):
-		aOut.append( [[z for z in compress( range(len(pInterval)), map( lambda x,y: x <= value <y, pInterval ) )] or [0]][0] )
+		aOut.append( [ z for z in compress( range(len(pInterval)), map( lambda x: x[0] <= value < x[1], pInterval ) ) ][0] ) 
 
 	return aOut
 
-
 def classify_by_logistic( pArray, iClass = 2 ):
-	aInterval = partition_of_unity =( iSize = iClass )
+	
+	aInterval = partition_of_unity( iSize = iClass )
 
-	return indicator( logistic.cdf( pArray ), aIterval )
+	return indicator( logistic.cdf( pArray ), aInterval )
 
 def generate_linkage( num_clusters = 3, num_children = 3, num_examples = 20):
 	"""
@@ -71,27 +71,36 @@ def generate_linkage( num_clusters = 3, num_children = 3, num_examples = 20):
 	Output: Tuple (predictor matrix, response matrix) 
 	"""
 
-	aBeta = uniform.rvs(suze=num_clusters)
+	aBeta = uniform.rvs(size=num_clusters)
 
 	iRows = num_clusters * num_children
 	iCols = num_examples 
 	
 	predictor_matrix = generate_clustered_data( num_clusters, num_children, num_examples )
+	raw = predictor_matrix[:]
+	response_matrix = []
 
+	while raw.any():
+		
+		pCluster, raw = raw[:num_clusters], raw[num_clusters:]
+		response_matrix.append( classify_by_logistic( numpy.dot( aBeta, pCluster ) ) )
 
-
-
-
-
+	return predictor_matrix, response_matrix
 
 if __name__ == "__main__":
 
-	aOut = generate_clustered_data()
+	predictor, response = generate_linkage()
 
 	csvw = csv.writer( sys.stdout, csv.excel_tab )
 
-	for item in aOut:
+	csvw.writerow( ["#Predictor"] )
+
+	for item in predictor:
 		csvw.writerow( item )
 
+	csvw.writerow( ["#Response"])
+
+	for item in response:
+		csvw.writerow( item )
 
 
