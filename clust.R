@@ -36,3 +36,4 @@ prior.theta <- rigamma(1, hyper.alpha, hyper.beta)
 
 vec.out <- c( vec.out, rnorm(num.draws, 0, prior.theta) ) 
 
+write.table( vec.out, file="clust.txt", sep="\t")
