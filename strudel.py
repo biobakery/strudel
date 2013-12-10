@@ -1,16 +1,127 @@
 """
-STRUDEL: Synthetic Rudimentary Data Exploration 
+=====================================================
+STRUDEL: Synthetic Rudimentary Data Exploration
+=====================================================
 
 Synthetic data generation for common exploration tasks in microbial data analysis 
+
+Authors
+ YS Joseph Moon, Curtis Huttenhower 
+
+URL
+ http://huttenhower.org/strudel 
 """
 
 import scipy
 import numpy 
+from numpy import array 
 import csv 
 import sys 
+import itertools 
 
-## namespace for distributions 
-from scipy.stats import invgamma, norm, uniform, logistic 
+####### namespace for distributions 
+from scipy.stats import invgamma, norm, uniform, logistic
+from numpy.random import normal, multinomial
+
+####### namespace for plotting 
+from pylab import hist, plot
+
+class Strudel:
+	### Avoid lazy evaluation when possible, to avoid depency problems 
+
+	def __init__( self ):
+		self.hash_distributions	= {"uniform": uniform, 
+									"normal": norm}
+		
+		self.base_param 		= (0,1)
+
+		self.base_distribution	= self.hash_distributions["uniform"] #scipy stats object; uniform by default  
+
+		self.test_distribution	= [] 
+
+	def set_base( self, strDist ):
+		if not strDist: ## if not setting strDist, return what it is 
+			return self.base_distribution
+		else: ## setting the distribution 
+			self.base_distribution = self.hash_distributions[strDist] 
+			return self.base_distribution 
+
+	def randmat( self, shape = (10,10) ):
+		"""
+		Returns a shape-dimensional matrix given by base distribution pDist 
+		Order: Row, Col 
+		"""	
+		H = self.base_distribution #base measure 
+		
+		iRow, iCol = shape
+
+		assert( iRow != 0 and iCol !=0 ) 
+		
+		return H( *self.base_param ).rvs( shape ) 
+
+	def randmix( self, shape = 10, param = [(0,1), (1,1)], pi = [0.5,0.5] ):
+		"""
+		Draw N copies from a mixture distribution with pdf $ pi^T * H( \cdot | param ) $
+		
+		Parameters
+		------------
+
+			shape <- number of components
+			param <- length $k$ parameters to base distribution, $\theta$  
+			pi <- length $k$ tuple (vector) to categorical rv Z_n 
+
+		Returns
+		----------
+		
+			N copies from mixture distribution $\sum_{k=1}^{K} \pi_k H(.| \theta )$ 
+		
+		""" 
+		iRow, iCol = None, None 
+
+		try:
+			iCol = int( shape )
+		except TypeError:
+			iRow, iCol = shape[0], shape[1]
+
+		H = self.base_distribution 
+		
+		assert( len( param ) == len( pi ) )
+		
+		aOut = [] 
+
+		K = len( param ) 
+		
+		def _draw():
+			return H( *[x for x in itertools.compress( param, multinomial( 1, pi ) )][0] ).rvs()
+				
+		return [[ _draw() for _ in range(iCol)] for _ in (range(iRow) if iRow else range(1)) ]
+
+
+	def randclust(self):
+		"""
+		Draw clustered data; linked through bayesian net 
+
+		Parameters
+		-----------
+
+		Returns
+		----------
+
+		"""
+		pass 
+
+	## Parametricized Shapes 
+
+	def circle(self):
+		pass
+
+	def sine( self ):
+		pass
+
+	def parabola( self ):
+		pass 
+
+
 
 def generate_clustered_data( num_clusters = 3, num_children = 3, num_examples = 20):
 	"""
@@ -89,18 +200,18 @@ def generate_linkage( num_clusters = 3, num_children = 3, num_examples = 20):
 
 if __name__ == "__main__":
 
-	predictor, response = generate_linkage( num_clusters =3, num_children=10, num_examples=20 )
+	#predictor, response = generate_linkage( num_clusters =3, num_children=10, num_examples=20 )
 
-	csvw = csv.writer( sys.stdout, csv.excel_tab )
+	#csvw = csv.writer( sys.stdout, csv.excel_tab )
 
-	csvw.writerow( ["#Predictor"] )
+	#csvw.writerow( ["#Predictor"] )
 
-	for i, item in enumerate( predictor ): 
-		csvw.writerow( ["x" +str(i)] + list( item ) )
+	#for i, item in enumerate( predictor ): 
+	#	csvw.writerow( ["x" +str(i)] + list( item ) )
 
-	csvw.writerow( ["#Response"])
+	#csvw.writerow( ["#Response"])
 
-	for i, item in enumerate( response ):
-		csvw.writerow( ["y" + str(i)]  + list ( item ) )
+	#for i, item in enumerate( response ):
+	#	csvw.writerow( ["y" + str(i)]  + list ( item ) )
 
 
