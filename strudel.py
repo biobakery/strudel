@@ -24,27 +24,58 @@ from scipy.stats import invgamma, norm, uniform, logistic
 from numpy.random import normal, multinomial
 
 ####### namespace for plotting 
-from pylab import hist, plot
+from pylab import hist, plot, figure
 
 class Strudel:
 	### Avoid lazy evaluation when possible, to avoid depency problems 
 
 	def __init__( self ):
+
+		class linear: ## wrapper for the linear "distribution" method 
+			def __init__( self, param1 = None, param2 = None ):
+				self.object = None 
+				if param1 and param2:
+					self.object = lambda shape: numpy.linspace( param1, param2, shape )
+
+			def rvs( self, shape ):
+				return self.object( shape )
+
 		self.hash_distributions	= {"uniform": uniform, 
-									"normal": norm}
+									"normal": norm, 
+									"linear": linear }
+
+		self.base 				= "uniform"
 		
 		self.base_param 		= (0,1)
 
-		self.base_distribution	= self.hash_distributions["uniform"] #scipy stats object; uniform by default  
+		self.base_distribution	= self.hash_distributions[self.base] #scipy stats object; uniform by default  
 
-		self.test_distribution	= [] 
+		self.test_distribution	= None 
+
+		self.base_array 		= []
+
+		self.test_array			= []
+
+		self.noise_param		= 0 # a value between [0,1]; controls amount of noise added to the test distribution 
+
+		self.noise_distribution = lambda variance: norm(0,variance)
+
 
 	def set_base( self, strDist ):
 		if not strDist: ## if not setting strDist, return what it is 
 			return self.base_distribution
 		else: ## setting the distribution 
+			self.base = strDist 
 			self.base_distribution = self.hash_distributions[strDist] 
 			return self.base_distribution 
+
+	def set_noise( self, noise ):
+		self.noise_param = noise 
+
+	def set_param( self, param ):
+		self.base_param = param 
+
+	### Base generation 
 
 	def randmat( self, shape = (10,10) ):
 		"""
@@ -53,11 +84,14 @@ class Strudel:
 		"""	
 		H = self.base_distribution #base measure 
 		
-		iRow, iCol = shape
+		iRow, iCol = None, None 
 
-		assert( iRow != 0 and iCol !=0 ) 
+		try:
+			iCol = int( shape )
+		except TypeError:
+			iRow, iCol = shape[0], shape[1]
 		
-		return H( *self.base_param ).rvs( shape ) 
+		return H( *self.base_param ).rvs( shape if iRow else iCol ) 
 
 	def randmix( self, shape = 10, param = [(0,1), (1,1)], pi = [0.5,0.5] ):
 		"""
@@ -97,7 +131,7 @@ class Strudel:
 		return [[ _draw() for _ in range(iCol)] for _ in (range(iRow) if iRow else range(1)) ]
 
 
-	def randclust(self):
+	def randclust( self ):
 		"""
 		Draw clustered data; linked through bayesian net 
 
@@ -110,18 +144,43 @@ class Strudel:
 		"""
 		pass 
 
-	## Parametricized Shapes 
+	## Parametricized shapes under uniform base distribution 
 
-	def circle(self):
-		pass
+	def half_circle( self, shape = 100 ): 
+		H = self.base_distribution( *self.base_param )
+		v = H.rvs( shape )
+		x = numpy.sqrt( 1-v**2 ) + self.noise_distribution( self.noise_param ).rvs( shape )
+		return v,x 
 
-	def sine( self ):
-		pass
+	def sine( self, shape = 100 ):
+		H = self.base_distribution( *self.base_param )
+		v = H.rvs( shape )
+		x = numpy.sin( v*numpy.pi ) + self.noise_distribution( self.noise_param ).rvs( shape )
+		return v,x 
+	
+	def parabola( self, shape = 100 ):
+		H = self.base_distribution( *self.base_param )
+		v = H.rvs( shape )
+		x = v**2 + self.noise_distribution( self.noise_param ).rvs( shape )
+		return v,x 
 
-	def parabola( self ):
-		pass 
+	def cubic( self, shape = 100):
+		H = self.base_distribution( *self.base_param )
+		v = H.rvs( shape )
+		x = v**3 + self.noise_distribution( self.noise_param ).rvs( shape )
+		return v,x 
 
+	def run( self ):
 
+		self.set_base("linear")
+		self.set_param((-1,1))
+
+		for item in ["half_circle", "sine", "parabola", "cubic"]:
+			figure() 
+			v,x = getattr(self, item)()
+			print v
+			print x 
+			plot(v,x)
 
 def generate_clustered_data( num_clusters = 3, num_children = 3, num_examples = 20):
 	"""
@@ -199,7 +258,7 @@ def generate_linkage( num_clusters = 3, num_children = 3, num_examples = 20):
 	return predictor_matrix, response_matrix
 
 if __name__ == "__main__":
-
+	pass 
 	#predictor, response = generate_linkage( num_clusters =3, num_children=10, num_examples=20 )
 
 	#csvw = csv.writer( sys.stdout, csv.excel_tab )
