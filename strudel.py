@@ -14,6 +14,8 @@ URL
 Notes 
 -----------
 
+* Let's not reinvent the wheel; for more complicated Bayesian networks, should look at PyMC and implementations such as bnlearn 
+
 * The base distribution is _always_ the prior and the base parameters are _always_ the hyperparameters 
 * Known useful generations 
 	* zero- and one-inflated beta distributions
@@ -77,15 +79,13 @@ class Strudel:
 		
 		self.base_param 		= (0,1)
 
+		self.shape 				= 100 #number of samples to generate 
+
 		self.base_distribution	= self._eval( self.hash_distributions, self.base )
 
 		#self.base_distribution	= self.hash_distributions[self.base] #scipy stats object; uniform by default  
 
-		self.test_distribution	= None 
-
-		self.base_array 		= []
-
-		self.test_array			= []
+		self.linkage 			= [] 
 
 		self.noise_param		= 0 # a value between [0,1]; controls amount of noise added to the test distribution 
 
@@ -125,27 +125,20 @@ class Strudel:
 		#else:
 		if (isinstance( aBase, tuple ) or isinstance( aBase, list )) and (isinstance( aParam[0], tuple ) or isinstance( aParam[0], list )): ## Both aBase and aParam are iterables in 1-1 fashion
 			assert( len(aBase) == len(aParam) )
-			print 1
 			return [self.__eval(f,x,pEval) for f,x in zip(aBase,aParam)]
 
 		elif ( isinstance( aBase, tuple ) or isinstance( aBase, list ) ) and ( isinstance( aParam, tuple ) or isinstance( aParam, list ) or isinstance( aParam, str )): ## aParam same for all in aBase; many to one 
-			print 2 
 			aParam = [aParam] * len( aBase )
-			print aParam
-			print aBase 
-			print [self.__eval(f,x,pEval) for f,x in zip(aBase,aParam)]
 			return [self.__eval(f,x,pEval) for f,x in zip(aBase,aParam)]
 
 		else: ## aBase and aParam are actually single objects 
-			print 3 
 			try: 
 				return self.__eval( aBase, aParam, pEval )
 			except Exception: ## last resort is one to many, since this is ambiguous; aParam is usually always an iterable 
 				return [self.__eval(aBase, x) for x in aParam]
 
-
 	def _rvs( self, aBase ):
-		return self._eval( aBase, aParam = ".rvs" )
+		return self._eval( aBase, aParam = ".rvs", pEval = () )
 
 	### Public functions 
 
@@ -235,6 +228,54 @@ class Strudel:
 		"""
 		pass 
 
+
+	def generate_clustered_data( self, num_clusters = 3, num_children = 3, num_examples = 10, param = [((0,0.01),(1,1)), ((5,0.01),(2,1)), ((10,0.01),(3,1))]):
+		"""
+
+		Normal clusters with conjugate prior 
+
+		Input: Specify distributions 
+		  
+			num_children <- children that share prior for each cluster 
+			num_examples 
+
+		Output: p x n matrix, with clustered variables 
+		"""
+
+		#num_clusters = None 
+
+		#if isinstance( self.base, str ):
+		#	num_clusters = 1 
+		#elif isinstance( self.base, list ) or isinstance( self.base, tuple ):
+		#	num_clusters = len( self.base )
+
+		aOut = [] 
+
+		zip_param = zip(*param)
+
+		atHyperMean, atHyperVar = zip_param[0], zip_param[1]
+
+		assert( num_clusters >= 1 )
+
+		#aBase = [self.base_distribution] if num_clusters == 1 else self.base_distribution
+
+		sigma, mu = None, None 
+
+		for k in range(num_clusters):
+			alpha, beta = atHyperVar[k]
+			prior_mu, prior_sigma = atHyperMean[k]
+
+			sigma = invgamma.rvs(alpha)
+			mu = norm.rvs(loc=prior_mu,scale=prior_sigma)
+			print mu,sigma 
+			for j in range(num_children):
+
+				iid_norm = norm.rvs( loc=mu, scale=sigma, size=num_examples)
+
+				aOut.append( iid_norm )
+
+		return numpy.array(aOut)
+
 	## Parametricized shapes under uniform base distribution 
 	## Good reference is http://cran.r-project.org/web/packages/mlbench/index.html 
 	## Incorporate useful elements from it in the future 
@@ -283,14 +324,10 @@ class Strudel:
 
 	## Probability distributions under base prior distribution 
 
-	def norm( self, shape = 100 ):
-		H = self.base_distribution( *self.base_param )
-		v = H.rvs( shape )
-		x = v**2 + self.noise_distribution( self.noise_param ).rvs( shape )
-		return v,x 
+	def norm( self, mu, sigma, shape = 100 ):
+		pass 
 
-
-
+	### Pipelines 
 
 	def run( self ):
 		self.set_noise( 0.01 )
@@ -312,36 +349,6 @@ class Strudel:
 		aInd = zip(range(iSize-1),range(1,iSize+1))
 		return [(aLin[i],aLin[j]) for i,j in aInd]
 	
-	def generate_clustered_data( self, num_clusters = 3, num_children = 3, num_examples = 20, param = [((0,0.1),(1,1)), ((0,0.25),(3,1)), ((0,0.5),(5,0.5))]):
-		"""
-		Input: Specify distributions 
-		
-			num_clusters  
-			num_children <- children that share prior for each cluster 
-			num_examples 
-
-		Output: p x n matrix, with clustered variables 
-		"""
-
-		aOut = [] 
-
-		zip_param = zip(*param)
-
-		atHyperMean, atHyperVar = zip_param[0], zip_param[1]
-
-		for k in range(num_clusters):
-			alpha, beta = atHyperVar[k]
-			prior_mu, prior_sigma = atHyperMean[k]
-
-			for j in range(num_children):
-				sigma = invgamma.rvs(alpha)
-				mu = norm.rvs(loc=prior_mu,scale=prior_sigma)
-
-				iid_norm = norm.rvs( loc=mu, scale=sigma, size=num_examples)
-
-				aOut.append( iid_norm )
-
-		return numpy.array(aOut)
 
 	def indicator( self, pArray, pInterval ):
 
