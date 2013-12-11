@@ -77,7 +77,9 @@ class Strudel:
 		
 		self.base_param 		= (0,1)
 
-		self.base_distribution	= self.hash_distributions[self.base] #scipy stats object; uniform by default  
+		self.base_distribution	= self._eval( self.hash_distributions, self.base )
+
+		#self.base_distribution	= self.hash_distributions[self.base] #scipy stats object; uniform by default  
 
 		self.test_distribution	= None 
 
@@ -93,7 +95,19 @@ class Strudel:
 
 	### Private helper functions 
 
-	def _eval( self, aBase, aParam, pEval = None ):
+	def __eval( self, base, param, pEval = None ):
+		"""
+		one-one evaluation
+		"""
+		if isinstance( base, dict ): ## evaluate dict
+			return base[param] 
+		elif isinstance( param, str ) and param[0] == ".": ##"dot notation"
+			param = param[1:]
+			return getattr( base, param )
+		else: ## else assume that base is a plain old function
+			return base(*param) if pEval == "*" else base( param )
+
+	def _eval( self, aBase, aParam, pEval = "*" ):
 		"""
 		Allows:
 			one, one
@@ -102,34 +116,37 @@ class Strudel:
 		Disallows:
 			one, many 
 		"""
-		if isinstance( aParam, str ): ## if aParam is a string, then take it to mean that you are performing `aBase.aParam`
-			if isinstance( aBase, tuple or list ): ## map to multiple aBase
-				return [getattr( b, aParam )( pEval ) for b in aBase] 
-			else: ## aBase is actually single object 
-				return getattr( aBase, aParam )( pEval )
-		else:
-			if isinstance( aBase, tuple or list ) and isinstance( aParam[0], tuple or list ): ## Both aBase and aParam are iterables in 1-1 fashion
-				assert( len(aBase) == len(aParam) )
-				return [f(*x) for f,x in zip(aBase, aParam)]
-			elif isinstance( aBase, tuple or list ) and isinstance( aParam, tuple or list ): ## aParam same for all in aBase
-				aParam = [aParam] * len( aBase )
-				return [f(*x) for f,x in zip(aBase, aParam)]
-			else: ## aBase and aParam are actually single objects 
-				return aBase( *aParam )
+		#if isinstance( aParam, str ) and aParam[0] == ".": ## if aParam is a string, then take it to mean that you are performing `aBase.aParam`
+		#	aParam = aParam[1:]
+		#	if isinstance( aBase, tuple or list ): ## map to multiple aBase
+		#		return [getattr( b, aParam )( pEval ) for b in aBase] 
+		#	else: ## aBase is actually single object 
+		#		return getattr( aBase, aParam )( pEval )
+		#else:
+		if isinstance( aBase, tuple or list ) and isinstance( aParam[0], tuple or list ): ## Both aBase and aParam are iterables in 1-1 fashion
+			assert( len(aBase) == len(aParam) )
+			return [self.__eval(f,x,pEval) for f,x in zip(aBase,aParam)]
+
+		elif isinstance( aBase, tuple or list ) and isinstance( aParam, tuple or list ): ## aParam same for all in aBase
+			aParam = [aParam] * len( aBase )
+			return [self.__eval(f,x,pEval) for f,x in zip(aBase,aParam)]
+
+		else: ## aBase and aParam are actually single objects 
+			try: 
+				return self.__eval( aBase, aParam, pEval )
+			except TypeError: ## last resort is one to many, since this is ambiguous; aParam is usually always an iterable 
+				return [self.__eval(aBase, x) for x in aParam]
+
 
 	def _rvs( self, aBase ):
-		return self._eval( aBase, aParam = "rvs")
+		return self._eval( aBase, aParam = ".rvs" )
 
 	### Public functions 
 
-	def set_base( self, dist ):
-		self.base = dist 
-		if isinstance( dist, str ):
-			print "single"
-			self.base_distribution = self.hash_distributions[dist] 
-		elif isinstance( dist, tuple or list or array ):
-			print "multiple"
-			self.base_distribution = [self.hash_distributions[d] for d in dist]
+	def set_base( self, aDist ):
+		self.base = aDist 
+		self.base_distribution = self._eval( self.hash_distributions, self.base )
+		return self.base_distribution 
 
 	def set_noise( self, noise ):
 		self.noise_param = noise 
@@ -153,7 +170,7 @@ class Strudel:
 		except TypeError:
 			iRow, iCol = shape[0], shape[1]
 		
-
+		return [ self._eval( p, ".rvs", )  for p in self._eval( H, self.base_param, pEval = "*" ) ]
 		return H( *self.base_param ).rvs( shape if iRow else iCol ) 
 
 	def randmix( self, shape = 10, param = [(0,1), (1,1)], pi = [0.5,0.5] ):
