@@ -10,6 +10,26 @@ Authors
 
 URL
  http://huttenhower.org/strudel 
+
+Notes 
+-----------
+
+* Known useful generations 
+	* zero- and one-inflated beta distributions
+	* zero- and one-inflated gaussian distributions 
+	* dirichlet-type data (true and false zeros)
+	* non-parametric generation of time series data 
+	* parametric generation fo time-series data (e.g. Markov chains, generalized linear models) 
+	* test suite including SparseDOSSA	 
+* Incorporate themes from `mlbench` 
+* Add inference pipeline for certain known models 
+	* Mixture models (EM)
+	* Clusterd Data 
+	* Non-parametric and parametric estimates for mutual information calculation 
+* Build class in such a way that making distributions arbitrarily complicated is easy to write down 
+* Make meta-strudel a reality 
+
+
 """
 
 import scipy
