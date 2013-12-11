@@ -103,7 +103,7 @@ class Strudel:
 			return base[param] 
 		elif isinstance( param, str ) and param[0] == ".": ##"dot notation"
 			param = param[1:]
-			return getattr( base, param )
+			return getattr( base, param )( pEval )
 		else: ## else assume that base is a plain old function
 			return base(*param) if pEval == "*" else base( param )
 
@@ -123,18 +123,24 @@ class Strudel:
 		#	else: ## aBase is actually single object 
 		#		return getattr( aBase, aParam )( pEval )
 		#else:
-		if isinstance( aBase, tuple or list ) and isinstance( aParam[0], tuple or list ): ## Both aBase and aParam are iterables in 1-1 fashion
+		if (isinstance( aBase, tuple ) or isinstance( aBase, list )) and (isinstance( aParam[0], tuple ) or isinstance( aParam[0], list )): ## Both aBase and aParam are iterables in 1-1 fashion
 			assert( len(aBase) == len(aParam) )
+			print 1
 			return [self.__eval(f,x,pEval) for f,x in zip(aBase,aParam)]
 
-		elif isinstance( aBase, tuple or list ) and isinstance( aParam, tuple or list ): ## aParam same for all in aBase
+		elif ( isinstance( aBase, tuple ) or isinstance( aBase, list ) ) and ( isinstance( aParam, tuple ) or isinstance( aParam, list ) or isinstance( aParam, str )): ## aParam same for all in aBase; many to one 
+			print 2 
 			aParam = [aParam] * len( aBase )
+			print aParam
+			print aBase 
+			print [self.__eval(f,x,pEval) for f,x in zip(aBase,aParam)]
 			return [self.__eval(f,x,pEval) for f,x in zip(aBase,aParam)]
 
 		else: ## aBase and aParam are actually single objects 
+			print 3 
 			try: 
 				return self.__eval( aBase, aParam, pEval )
-			except TypeError: ## last resort is one to many, since this is ambiguous; aParam is usually always an iterable 
+			except Exception: ## last resort is one to many, since this is ambiguous; aParam is usually always an iterable 
 				return [self.__eval(aBase, x) for x in aParam]
 
 
@@ -170,8 +176,7 @@ class Strudel:
 		except TypeError:
 			iRow, iCol = shape[0], shape[1]
 		
-		return [ self._eval( p, ".rvs", )  for p in self._eval( H, self.base_param, pEval = "*" ) ]
-		return H( *self.base_param ).rvs( shape if iRow else iCol ) 
+		return self._eval( self._eval( H, self.base_param, pEval = "*" ), ".rvs", pEval = shape if iRow else iCol )
 
 	def randmix( self, shape = 10, param = [(0,1), (1,1)], pi = [0.5,0.5] ):
 		"""
