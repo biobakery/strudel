@@ -14,6 +14,7 @@ URL
 Notes 
 -----------
 
+* The base distribution is _always_ the prior and the base parameters are _always_ the hyperparameters 
 * Known useful generations 
 	* zero- and one-inflated beta distributions
 	* zero- and one-inflated gaussian distributions 
@@ -62,10 +63,16 @@ class Strudel:
 			def rvs( self, shape ):
 				return self.object( shape )
 
-		self.hash_distributions	= {"uniform": uniform, 
-									"normal": norm, 
-									"linear": linear }
+		self.hash_distributions	= { "uniform"	: uniform, 
+									"normal"	: norm, 
+									"linear"	: linear,
+									"invgamma"	: invgamma,
+									}
 
+		self.hash_conjugate		= { "normal" : ("normal", "invgamma"),
+									 } 
+
+		### Let the base distribution be just a single distribution, or an arbitrary tuple of distributions 
 		self.base 				= "uniform"
 		
 		self.base_param 		= (0,1)
@@ -84,14 +91,45 @@ class Strudel:
 
 		self.small 				= 0.001
 
+	### Private helper functions 
 
-	def set_base( self, strDist ):
-		if not strDist: ## if not setting strDist, return what it is 
-			return self.base_distribution
-		else: ## setting the distribution 
-			self.base = strDist 
-			self.base_distribution = self.hash_distributions[strDist] 
-			return self.base_distribution 
+	def _eval( self, aBase, aParam, pEval = None ):
+		"""
+		Allows:
+			one, one
+			many, many
+			many, one 
+		Disallows:
+			one, many 
+		"""
+		if isinstance( aParam, str ): ## if aParam is a string, then take it to mean that you are performing `aBase.aParam`
+			if isinstance( aBase, tuple or list ): ## map to multiple aBase
+				return [getattr( b, aParam )( pEval ) for b in aBase] 
+			else: ## aBase is actually single object 
+				return getattr( aBase, aParam )( pEval )
+		else:
+			if isinstance( aBase, tuple or list ) and isinstance( aParam[0], tuple or list ): ## Both aBase and aParam are iterables in 1-1 fashion
+				assert( len(aBase) == len(aParam) )
+				return [f(*x) for f,x in zip(aBase, aParam)]
+			elif isinstance( aBase, tuple or list ) and isinstance( aParam, tuple or list ): ## aParam same for all in aBase
+				aParam = [aParam] * len( aBase )
+				return [f(*x) for f,x in zip(aBase, aParam)]
+			else: ## aBase and aParam are actually single objects 
+				return aBase( *aParam )
+
+	def _rvs( self, aBase ):
+		return self._eval( aBase, aParam = "rvs")
+
+	### Public functions 
+
+	def set_base( self, dist ):
+		self.base = dist 
+		if isinstance( dist, str ):
+			print "single"
+			self.base_distribution = self.hash_distributions[dist] 
+		elif isinstance( dist, tuple or list or array ):
+			print "multiple"
+			self.base_distribution = [self.hash_distributions[d] for d in dist]
 
 	def set_noise( self, noise ):
 		self.noise_param = noise 
@@ -115,6 +153,7 @@ class Strudel:
 		except TypeError:
 			iRow, iCol = shape[0], shape[1]
 		
+
 		return H( *self.base_param ).rvs( shape if iRow else iCol ) 
 
 	def randmix( self, shape = 10, param = [(0,1), (1,1)], pi = [0.5,0.5] ):
@@ -155,7 +194,7 @@ class Strudel:
 		return [[ _draw() for _ in range(iCol)] for _ in (range(iRow) if iRow else range(1)) ]
 
 
-	def randclust( self ):
+	def randclust( self, param ):
 		"""
 		Draw clustered data; linked through bayesian net 
 
@@ -164,6 +203,12 @@ class Strudel:
 
 		Returns
 		----------
+
+		Notes
+		----------
+
+			Example
+			{w} = G < -- x --> F = {y,z}
 
 		"""
 		pass 
@@ -214,6 +259,17 @@ class Strudel:
 		x = numpy.sqrt( v**2 ) + self.noise_distribution( self.noise_param ).rvs( shape )
 		return v,x 
 
+	## Probability distributions under base prior distribution 
+
+	def norm( self, shape = 100 ):
+		H = self.base_distribution( *self.base_param )
+		v = H.rvs( shape )
+		x = v**2 + self.noise_distribution( self.noise_param ).rvs( shape )
+		return v,x 
+
+
+
+
 	def run( self ):
 		self.set_noise( 0.01 )
 		self.set_base("linear")
@@ -226,83 +282,85 @@ class Strudel:
 			print x 
 			plot(v,x)
 
-def generate_clustered_data( num_clusters = 3, num_children = 3, num_examples = 20):
-	"""
-	Input: Specify distributions 
+	### Linkage helper functions 
+
+	def partition_of_unity( self, iSize = 2 ):
+		iSize+=1 
+		aLin = numpy.linspace(0,1,iSize)
+		aInd = zip(range(iSize-1),range(1,iSize+1))
+		return [(aLin[i],aLin[j]) for i,j in aInd]
 	
-		num_clusters  
-		num_children <- children that share prior for each cluster 
-		num_examples 
-
-	Output: p x n matrix, with clustered variables 
-	"""
-
-	aOut = [] 
-
-	atHyperVar = [(1,1), (3,1), (5,0.5)] #hyperparameters for variance 
-
-	atHyperMean = [(0,0.1), (0,0.25), (0,0.5)] #hyperparameters for mean 
-
-	for k in range(num_clusters):
-		alpha, beta = atHyperVar[k]
-		prior_mu, prior_sigma = atHyperMean[k]
-
-		for j in range(num_children):
-			sigma = invgamma.rvs(alpha)
-			mu = norm.rvs(loc=prior_mu,scale=prior_sigma)
-
-			iid_norm = norm.rvs( loc=mu, scale=sigma, size=num_examples)
-
-			aOut.append( iid_norm )
-
-	return numpy.array(aOut)
-
-def partition_of_unity( iSize = 2 ):
-	iSize+=1 
-	aLin = numpy.linspace(0,1,iSize)
-	aInd = zip(range(iSize-1),range(1,iSize+1))
-	return [(aLin[i],aLin[j]) for i,j in aInd]
-
-def indicator( pArray, pInterval ):
-	from itertools import compress 
-
-	aOut = [] 
-
-	for i,value in enumerate( pArray ):
-		aOut.append( ([ z for z in compress( range(len(pInterval)), map( lambda x: x[0] <= value < x[1], pInterval ) ) ] or [0] )[0] ) 
-
-	return aOut
-
-def classify_by_logistic( pArray, iClass = 2 ):
-	
-	aInterval = partition_of_unity( iSize = iClass )
-
-	return indicator( logistic.cdf( pArray ), aInterval )
-
-def generate_linkage( num_clusters = 3, num_children = 3, num_examples = 20):
-	"""
-	Input: 
-	Output: Tuple (predictor matrix, response matrix) 
-	"""
-
-	aBeta = uniform.rvs(size=num_clusters)
-
-	iRows = num_clusters * num_children
-	iCols = num_examples 
-	
-	predictor_matrix = generate_clustered_data( num_clusters, num_children, num_examples )
-	raw = predictor_matrix[:]
-	response_matrix = []
-
-	while raw.any():
+	def generate_clustered_data( self, num_clusters = 3, num_children = 3, num_examples = 20, param = [((0,0.1),(1,1)), ((0,0.25),(3,1)), ((0,0.5),(5,0.5))]):
+		"""
+		Input: Specify distributions 
 		
-		pCluster, raw = raw[:num_clusters], raw[num_clusters:]
-		response_matrix.append( classify_by_logistic( numpy.dot( aBeta, pCluster ), iClass = 5 ) )
+			num_clusters  
+			num_children <- children that share prior for each cluster 
+			num_examples 
 
-	return predictor_matrix, response_matrix
+		Output: p x n matrix, with clustered variables 
+		"""
 
-if __name__ == "__main__":
-	pass 
+		aOut = [] 
+
+		zip_param = zip(*param)
+
+		atHyperMean, atHyperVar = zip_param[0], zip_param[1]
+
+		for k in range(num_clusters):
+			alpha, beta = atHyperVar[k]
+			prior_mu, prior_sigma = atHyperMean[k]
+
+			for j in range(num_children):
+				sigma = invgamma.rvs(alpha)
+				mu = norm.rvs(loc=prior_mu,scale=prior_sigma)
+
+				iid_norm = norm.rvs( loc=mu, scale=sigma, size=num_examples)
+
+				aOut.append( iid_norm )
+
+		return numpy.array(aOut)
+
+	def indicator( self, pArray, pInterval ):
+
+		aOut = [] 
+
+		for i,value in enumerate( pArray ):
+			aOut.append( ([ z for z in itertools.compress( range(len(pInterval)), map( lambda x: x[0] <= value < x[1], pInterval ) ) ] or [0] )[0] ) 
+
+		return aOut
+
+	def classify( self, pArray, method = "logistic", iClass = 2 ):
+		
+		aInterval = self.partition_of_unity( iSize = iClass )
+
+		return self.indicator( logistic.cdf( pArray ), aInterval )
+
+	def generate_linkage( self, num_clusters = 3, num_children = 3, num_examples = 20):
+		"""
+		Input: 
+		Output: Tuple (predictor matrix, response matrix) 
+		"""
+
+		aBeta = uniform.rvs(size=num_clusters)
+
+		iRows = num_clusters * num_children
+		iCols = num_examples 
+		
+		predictor_matrix = self.generate_clustered_data( num_clusters, num_children, num_examples )
+		raw = predictor_matrix[:]
+		response_matrix = []
+
+		while raw.any():
+			
+			pCluster, raw = raw[:num_clusters], raw[num_clusters:]
+			response_matrix.append( self.classify( numpy.dot( aBeta, pCluster ), iClass = 5 ) ) ## currently the `classify` function is used to discretize the continuous data 
+			## to generate synthetic metadata linked by an appropriate linkage function 
+
+		return predictor_matrix, response_matrix
+
+#if __name__ == "__main__":
+	#pass 
 	#predictor, response = generate_linkage( num_clusters =3, num_children=10, num_examples=20 )
 
 	#csvw = csv.writer( sys.stdout, csv.excel_tab )
