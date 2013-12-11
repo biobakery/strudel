@@ -28,6 +28,8 @@ from pylab import hist, plot, figure
 
 class Strudel:
 	### Avoid lazy evaluation when possible, to avoid depency problems 
+	### Make sure to build the class in such a way that making the distributions arbitrarily complicated is easy to write down 
+	### Make meta-strudel a reality 
 
 	def __init__( self ):
 
@@ -59,6 +61,8 @@ class Strudel:
 		self.noise_param		= 0 # a value between [0,1]; controls amount of noise added to the test distribution 
 
 		self.noise_distribution = lambda variance: norm(0,variance)
+
+		self.small 				= 0.001
 
 
 	def set_base( self, strDist ):
@@ -145,6 +149,14 @@ class Strudel:
 		pass 
 
 	## Parametricized shapes under uniform base distribution 
+	## Good reference is http://cran.r-project.org/web/packages/mlbench/index.html 
+	## Incorporate useful elements from it in the future 
+
+	def identity( self, shape = 100 ):
+		H = self.base_distribution( *self.base_param )
+		v = H.rvs( shape )
+		x = v + self.noise_distribution( self.noise_param ).rvs( shape )
+		return v,x 
 
 	def half_circle( self, shape = 100 ): 
 		H = self.base_distribution( *self.base_param )
@@ -170,12 +182,24 @@ class Strudel:
 		x = v**3 + self.noise_distribution( self.noise_param ).rvs( shape )
 		return v,x 
 
-	def run( self ):
+	def log( self, shape = 100):
+		H = self.base_distribution( *self.base_param )
+		v = H.rvs( shape )
+		x = numpy.log( 1 + v + self.small ) + self.noise_distribution( self.noise_param ).rvs( shape )
+		return v,x 
 
+	def vee( self, shape = 100 ): 
+		H = self.base_distribution( *self.base_param )
+		v = H.rvs( shape )
+		x = numpy.sqrt( v**2 ) + self.noise_distribution( self.noise_param ).rvs( shape )
+		return v,x 
+
+	def run( self ):
+		self.set_noise( 0.01 )
 		self.set_base("linear")
 		self.set_param((-1,1))
 
-		for item in ["half_circle", "sine", "parabola", "cubic"]:
+		for item in ["identity", "half_circle", "sine", "parabola", "cubic", "log", "vee"]:
 			figure() 
 			v,x = getattr(self, item)()
 			print v
