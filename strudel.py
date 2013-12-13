@@ -97,12 +97,13 @@ class Strudel:
 
 		for k,v in self.hash_distributions.items():
 			setattr( self, k, v) 
-
-	### Private helper functions 
+	#========================================#
+	# Private helper functions 
+	#========================================#
 
 	def __eval( self, base, param, pEval = None ):
 		"""
-		one-one evaluation
+		one-one evaluation helper function for _eval 
 		"""
 		if isinstance( base, dict ): ## evaluate dict
 			return base[param] 
@@ -114,25 +115,39 @@ class Strudel:
 
 	def _eval( self, aBase, aParam, pEval = "*" ):
 		"""
+
+		Parameters 
+		----------
+
+			aBase : object or list of objects
+			aParam : parameters or list of parameters 
+			pEval : str 
+				Specifies what evaluation rule should be used 
+				E.g. "*" feeds in the "aBase(*aParam)" fashion 
+
+		Returns
+		---------
+
+			Z : object or list of objects 
+				evaluation returned by aBase given aParam; can be single value or iterable. 
+
+		Notes
+		---------
 		Allows:
 			one, one
 			many, many
 			many, one 
-		Disallows:
+		Ambiguous:
 			one, many 
 		"""
-		#if isinstance( aParam, str ) and aParam[0] == ".": ## if aParam is a string, then take it to mean that you are performing `aBase.aParam`
-		#	aParam = aParam[1:]
-		#	if isinstance( aBase, tuple or list ): ## map to multiple aBase
-		#		return [getattr( b, aParam )( pEval ) for b in aBase] 
-		#	else: ## aBase is actually single object 
-		#		return getattr( aBase, aParam )( pEval )
-		#else:
-		if (isinstance( aBase, tuple ) or isinstance( aBase, list )) and (isinstance( aParam[0], tuple ) or isinstance( aParam[0], list )): ## Both aBase and aParam are iterables in 1-1 fashion
+		
+		if (isinstance( aBase, tuple ) or isinstance( aBase, list )) and (isinstance( aParam[0], tuple ) or
+			 isinstance( aParam[0], list )): ## Both aBase and aParam are iterables in 1-1 fashion
 			assert( len(aBase) == len(aParam) )
 			return [self.__eval(f,x,pEval) for f,x in zip(aBase,aParam)]
 
-		elif ( isinstance( aBase, tuple ) or isinstance( aBase, list ) ) and ( isinstance( aParam, tuple ) or isinstance( aParam, list ) or isinstance( aParam, str )): ## aParam same for all in aBase; many to one 
+		elif ( isinstance( aBase, tuple ) or isinstance( aBase, list ) ) and ( isinstance( aParam, tuple ) or 
+			isinstance( aParam, list ) or isinstance( aParam, str )): ## aParam same for all in aBase; many to one 
 			aParam = [aParam] * len( aBase )
 			return [self.__eval(f,x,pEval) for f,x in zip(aBase,aParam)]
 
@@ -149,8 +164,9 @@ class Strudel:
 	def _eval_rvs( self, aBase, aParam, pEval = () ):
 		return self._rvs( self._eval( aBase, aParam, "*")  , pEval)
 
-
-	### Public functions 
+	#========================================#
+	# Public functions 
+	#========================================#
 
 	def set_base( self, aDist ):
 		self.base = aDist 
@@ -163,7 +179,9 @@ class Strudel:
 	def set_param( self, param ):
 		self.base_param = param 
 
-	### Base generation 
+	#========================================#
+	# Base generation 
+	#========================================#
 
 	def randmat( self, shape = (10,10) ):
 		"""
@@ -239,7 +257,8 @@ class Strudel:
 		pass 
 
 
-	def generate_clustered_data( self, num_clusters = 3, num_children = 3, num_examples = 10, dist = ["norm", "norm", "norm"], param = [((0,0.01),(1,1)), ((5,0.01),(2,1)), ((10,0.01),(3,1))]):
+	def generate_clustered_data( self, num_clusters = 3, num_children = 3, num_examples = 10, dist = ["norm", "norm", "norm"], 
+			param = [((0,0.01),(1,1)), ((5,0.01),(2,1)), ((10,0.01),(3,1))]):
 		"""
 
 		Generate clustered data by graphical model representation.
@@ -322,9 +341,20 @@ class Strudel:
 
 		return numpy.array(aOut)
 
-	## Parametricized shapes under uniform base distribution 
+
+	#=============================================================#
+	# Adjacency matrix helper functions 
+	#=============================================================#
+
+	def adjacency( self ):
+		pass 
+
+	#==============================================================================#
+	# Parametricized shapes under uniform base distribution 
 	## Good reference is http://cran.r-project.org/web/packages/mlbench/index.html 
 	## Incorporate useful elements from it in the future 
+	#==============================================================================#
+
 
 	def identity( self, shape = 100 ):
 		H = self.base_distribution( *self.base_param )
@@ -368,12 +398,10 @@ class Strudel:
 		x = numpy.sqrt( v**2 ) + self.noise_distribution( self.noise_param ).rvs( shape )
 		return v,x 
 
-	## Probability distributions under base prior distribution 
-
-	def norm( self, mu, sigma, shape = 100 ):
-		pass 
-
-	### Pipelines 
+	#=============================================================#
+	# Pipelines  
+	#=============================================================#
+	
 
 	def run( self ):
 		self.set_noise( 0.01 )
@@ -387,7 +415,9 @@ class Strudel:
 			print x 
 			plot(v,x)
 
-	### Linkage helper functions 
+	#=============================================================#
+	# Linkage helper functions   
+	#=============================================================#
 
 	def partition_of_unity( self, iSize = 2 ):
 		iSize+=1 
