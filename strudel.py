@@ -93,6 +93,11 @@ class Strudel:
 
 		self.small 				= 0.001
 
+		## dynamically add distributions to class namespace
+
+		for k,v in self.hash_distributions.items():
+			setattr( self, k, v) 
+
 	### Private helper functions 
 
 	def __eval( self, base, param, pEval = None ):
@@ -137,8 +142,13 @@ class Strudel:
 			except Exception: ## last resort is one to many, since this is ambiguous; aParam is usually always an iterable 
 				return [self.__eval(aBase, x) for x in aParam]
 
-	def _rvs( self, aBase ):
-		return self._eval( aBase, aParam = ".rvs", pEval = () )
+	def _rvs( self, aBase, pEval = () ):
+		tmp_eval = pEval 
+		return self._eval( aBase, aParam = ".rvs", pEval = tmp_eval )
+
+	def _eval_rvs( self, aBase, aParam, pEval = () ):
+		return self._rvs( self._eval( aBase, aParam, "*")  , pEval)
+
 
 	### Public functions 
 
@@ -169,7 +179,7 @@ class Strudel:
 		except TypeError:
 			iRow, iCol = shape[0], shape[1]
 		
-		return self._eval( self._eval( H, self.base_param, pEval = "*" ), ".rvs", pEval = shape if iRow else iCol )
+		return self._eval_rvs( H, self.base_param, ( shape if iRow else iCol ) )
 
 	def randmix( self, shape = 10, param = [(0,1), (1,1)], pi = [0.5,0.5] ):
 		"""
@@ -229,17 +239,29 @@ class Strudel:
 		pass 
 
 
-	def generate_clustered_data( self, num_clusters = 3, num_children = 3, num_examples = 10, param = [((0,0.01),(1,1)), ((5,0.01),(2,1)), ((10,0.01),(3,1))]):
+	def generate_clustered_data( self, num_clusters = 3, num_children = 3, num_examples = 10, dist = ["norm", "norm", "norm"], param = [((0,0.01),(1,1)), ((5,0.01),(2,1)), ((10,0.01),(3,1))]):
 		"""
 
-		Normal clusters with conjugate prior 
+		Generate clustered data by graphical model representation.
 
-		Input: Specify distributions 
-		  
-			num_children <- children that share prior for each cluster 
-			num_examples 
+		Parameters
+		---------------
 
-		Output: p x n matrix, with clustered variables 
+		  	num_clusters : int 
+		  		Number of iid clusters in the graphical model 
+			num_children : int 
+				children that share prior for each cluster 
+			num_examples : int 
+				number of samples per distribution 
+			dist : object or list of objects 
+				distributions to be used per cluster 
+			param : float or tuple of float or list of tuple of floats 
+				hyperparameters of the prior distribution 
+
+		Returns 
+		------------
+			Z : numpy ndarray 
+				p x n matrix, with clustered variables 
 		"""
 
 		#num_clusters = None 
@@ -249,28 +271,52 @@ class Strudel:
 		#elif isinstance( self.base, list ) or isinstance( self.base, tuple ):
 		#	num_clusters = len( self.base )
 
+		"""
+		### Some exception handling 
+
+		if isinstance( dist, tuple ) or isinstance( dist, list ): 
+
+			aDist = [getattr(self, d) for d in dist]
+		elif isinstance( dist, str ): ### passing in a string that the module recognizes 
+			pass
+
+
+		if number_clusters != len(dist)
+		"""
+
 		aOut = [] 
+
+		
 
 		zip_param = zip(*param)
 
-		atHyperMean, atHyperVar = zip_param[0], zip_param[1]
+		atHyper = zip_param 
+
+		#atHyperMean, atHyperVar = zip_param[0], zip_param[1]
 
 		assert( num_clusters >= 1 )
 
 		#aBase = [self.base_distribution] if num_clusters == 1 else self.base_distribution
 
-		sigma, mu = None, None 
+		#sigma, mu = None, None 
 
 		for k in range(num_clusters):
-			alpha, beta = atHyperVar[k]
-			prior_mu, prior_sigma = atHyperMean[k]
 
-			sigma = invgamma.rvs(alpha)
-			mu = norm.rvs(loc=prior_mu,scale=prior_sigma)
-			print mu,sigma 
+
+			#prior_mu, prior_sigma = atHyperMean[k]
+			#alpha, beta = atHyperVar[k]
+
+			#sigma = invgamma.rvs(alpha)
+			#mu = norm.rvs(loc=prior_mu,scale=prior_sigma)
+			
+			## atHyper has columns of hyperparameters 
+
+			dist_param = [ self.base_distribution(*t).rvs() for t in atHyper ] 
+
 			for j in range(num_children):
 
-				iid_norm = norm.rvs( loc=mu, scale=sigma, size=num_examples)
+				#iid_norm = norm.rvs( loc=mu, scale=sigma, size=num_examples)
+				aIID = aDist[k].rvs( *dist_param, size=num_examples )
 
 				aOut.append( iid_norm )
 
