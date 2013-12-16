@@ -20,9 +20,10 @@ match up so length is preserved
 	** Parameters passed to distributions or functions should be _tuples_ 
 	** The object enclosing multiple parameters should be _lists_ 
 
-* Let's not reinvent the wheel; for more complicated Bayesian networks, should look at PyMC and implementations such as bnlearn 
 
-* The base distribution is _always_ the prior and the base parameters are _always_ the hyperparameters 
+* The base distribution is the 0th level distribution; prior distribution is the -1th level distribution in clustered data 
+	** The base distribution is used whenever possible 
+
 * Known useful generations 
 	* zero- and one-inflated beta distributions 
 	* zero- and one-inflated gaussian distributions 
@@ -38,6 +39,12 @@ match up so length is preserved
 * Build class in such a way that making distributions arbitrarily complicated is easy to write down 
 * Make meta-strudel a reality: I think at that point using PyMC, PyMix, and python modules for creating networks is necessary 
 
+To Do 
+
+* I need prior distributions to be tuples, as per invariance principle 
+
+* meta _make_invariant should be written to check against bad prior types 
+* Let's not reinvent the wheel; for more complicated Bayesian networks, should look at PyMC and implementations such as bnlearn 
 
 """
 
@@ -49,7 +56,7 @@ import sys
 import itertools 
 
 ####### namespace for distributions 
-from scipy.stats import invgamma, norm, uniform, logistic, gamma, lognorm 
+from scipy.stats import invgamma, norm, uniform, logistic, gamma, lognorm, beta, pareto  
 from numpy.random import normal, multinomial, dirichlet 
 
 ####### namespace for plotting 
@@ -85,11 +92,23 @@ class Strudel:
 									"gamma"		: gamma, 
 									"invgamma"	: invgamma,
 									"lognormal"	: lognorm,
-									"dirichlet" : dirichlet 
+									"beta"		: beta,
+									"dirichlet" : dirichlet, 
+									"pareto"	: pareto, 
 									}
 
-		self.hash_conjugate		= { "normal" : ("normal", "invgamma"),
+		self.hash_conjugate		= { "normal" 	: ("normal", "invgamma"), 
+									"uniform"	: "pareto"
 									 } 
+
+		self.hash_num_param		= {"normal"		: 2,
+									"invgamma"	: 2,
+									"linear"	: 2,
+									"gamma"		: 2,
+									"pareto"	: 2,
+									"dirichlet"	: "?",
+									"beta"		: 2, }
+
 		### Distributions parameters 
 		### Let the base distribution be just a single distribution, or an arbitrary tuple of distributions 
 		
@@ -105,16 +124,17 @@ class Strudel:
 
 		### Prior distribution 
 
-		self.prior 				= ["normal","invgamma"]
+		self.prior 				= self._eval( self.hash_conjugate, self.base ) 
 
 		self.prior_distribution = self._eval( self.hash_distributions, self.prior )
 
 		self.prior_shape		= 100 
 
+		self.prior_param		= ((0,1),(10,0))
+
 		### Linkage 
 
 		self.linkage 			= [] 
-
 
 		## Noise 
 
@@ -136,8 +156,11 @@ class Strudel:
 
 	def __eval( self, base, param, pEval = None ):
 		"""
-		one-one evaluation helper function for _eval 
-		"""
+		One-one evaluation helper function for _eval 
+
+		By necessity in _eval, handle one-to-many calls 
+		""" 
+
 		if isinstance( base, dict ): ## evaluate dict
 			return base[param] 
 		elif isinstance( param, str ) and param[0] == ".": ##"dot notation"
@@ -145,6 +168,12 @@ class Strudel:
 			return getattr( base, param )( pEval )
 		else: ## else assume that base is a plain old function
 			return base(*param) if pEval == "*" else base( param )
+
+	def __eval_many( self, base, aParam, pEval = None ):
+		if self._is_iter( aParam ):
+			return tuple([self._eval( base, p, pEval) for p in aParam])
+		else:
+			return self._eval( base, aParam, pEval )
 
 	def _eval( self, aBase, aParam, pEval = "*" ):
 		"""
@@ -174,21 +203,39 @@ class Strudel:
 			one, many 
 		"""
 		
-		if (isinstance( aBase, tuple ) or isinstance( aBase, list )) and (isinstance( aParam[0], tuple ) or
-			 isinstance( aParam[0], list )): ## Both aBase and aParam are iterables in 1-1 fashion
+		pOut = None 
+
+		pType = None 
+
+		if self._is_list( aParam ):
+			pType = list 
+		elif self._is_tuple( aParam ):
+			pType = tuple 
+		else:
+			pType = lambda x: x 
+
+		if self._is_iter( aBase ) and self._is_iter( aParam[0] ): ## Both aBase and aParam are iterables in 1-1 fashion
 			assert( len(aBase) == len(aParam) )
-			return [self.__eval(f,x,pEval) for f,x in zip(aBase,aParam)]
+			pOut = pType( [self.__eval(f,x,pEval) for f,x in zip(aBase,aParam)] )
 
 		elif ( isinstance( aBase, tuple ) or isinstance( aBase, list ) ) and ( isinstance( aParam, tuple ) or 
 			isinstance( aParam, list ) or isinstance( aParam, str )): ## aParam same for all in aBase; many to one 
-			aParam = [aParam] * len( aBase )
-			return [self.__eval(f,x,pEval) for f,x in zip(aBase,aParam)]
+			aParam = [aParam for _ in range(len(aBase))]
+			pOut = [self.__eval(f,x,pEval) for f,x in zip(aBase,aParam)]
 
 		else: ## aBase and aParam are actually single objects 
 			try: 
-				return self.__eval( aBase, aParam, pEval )
+				
+				pOut = self.__eval( aBase, aParam, pEval )
 			except Exception: ## last resort is one to many, since this is ambiguous; aParam is usually always an iterable 
-				return [self.__eval(aBase, x) for x in aParam]
+				try:
+			
+					pOut = [self.__eval(aBase, x) for x in aParam] ## one to many, where the keys are taken as literal 
+				except Exception:
+			
+					pOut = [self.__eval_many(aBase, x) for x in aParam] ## one to many, where the keys are themselves taken as iterable 
+
+		return pOut 
 
 	def _rvs( self, aBase, pEval = () ):
 		tmp_eval = pEval 
@@ -274,7 +321,14 @@ class Strudel:
 
 		return aObject 
 
-
+	def _make_invariant_many( self, pObject, apMatch ):
+		
+		assert( self._is_iter( apMatch ) )
+		if len( apMatch ) == 1:
+			return self._make_invariant( pObject, apMatch[0] )
+		else:
+			return [self.__make_invariant( pObject, p ) for p in apMatch]
+		
 	def _categorical( self, aProb, aCategory = None ):
 		if not aCategory:
 			aCategory = range(len(aProb))
@@ -287,7 +341,24 @@ class Strudel:
 	def set_base( self, aDist ):
 		self.base = aDist 
 		self.base_distribution = self._eval( self.hash_distributions, self.base )
+		self.prior = self._eval( self.hash_conjugate, self.base ) 
+		self.prior_distribution = self._eval( self.hash_distributions, self.prior )
+
 		return self.base_distribution 
+
+	def set_prior( self, aDist ):
+
+		num_param_dist = self.hash_num_param[self.base] #number of parameters required by the base distribution 
+
+		if self._is_iter( aDist ): #aDist is iterable 
+			assert( len(aDist) ==  num_param_dist ), "Number of prior distributions must match the number of parameters in the base distribution."
+			aDist = aDist 
+		
+		else: #aDist is a string 
+			aDist = self._make_invariant( aDist, num_param_dist )
+
+		self.prior = aDist 
+		self.prior_distribution = self._eval( self.hash_distributions, self.prior )
 
 	def set_noise( self, noise ):
 		self.noise_param = noise 
@@ -298,16 +369,23 @@ class Strudel:
 	def set_shape( self, shape_param ):
 		self.shape = shape_param 
 
+	def set_prior_param( self, prior_param ):
+		self.prior_param = prior_param 
+
+	def set_prior_shape( self, prior_shape ):
+		self.prior_shape = prior_shape 
+
 	#========================================#
 	# Base generation 
 	#========================================#
 
-	def randmat( self, shape = (10,10) ):
+	def randmat( self, shape = (10,10), dist = None ):
 		"""
-		Returns a shape-dimensional matrix given by base distribution pDist 
+		Returns a shape-dimensional matrix drawn IID from base distribution 
 		Order: Row, Col 
+
 		"""	
-		H = self.base_distribution #base measure 
+		H = self.base_distribution if not dist else dist #base measure 
 		
 		iRow, iCol = None, None 
 
@@ -372,9 +450,10 @@ class Strudel:
 
 		return [[ _draw() for _ in range(iCol)] for _ in (range(iRow) if iRow else range(1)) ]
 
+	#[((0,0.01),(1,1)), ((5,0.01),(2,1)), ((10,0.01),(3,1))]
 
-	def randclust( self, num_clusters = 3, num_children = 3, num_examples = 10, dist = ["normal", "normal", "normal"], 
-			param = [((0,0.01),(1,1)), ((5,0.01),(2,1)), ((10,0.01),(3,1))], adj = False ):
+	def randclust( self, num_clusters = 3, num_children = 2, num_examples = None, prior_dist = None, 
+			param = None, adj = False ):
 		"""
 
 		Generate clustered data by graphical model representation.
@@ -426,46 +505,40 @@ class Strudel:
 		if number_clusters != len(dist)
 		"""
 
-		dist = self._make_invariant( dist, param )
 
-		aDist = [getattr(self, d) for d in dist]
+		if not param:
+			param = self.prior_param 
+
+		param = self._make_invariant( param, num_clusters )
+
+		if not num_examples:
+			num_examples = self.shape 
+
+		if not prior_dist:
+			prior_dist = self.prior_distribution 
+			
+		prior_dist = self._make_invariant( prior_dist ,num_clusters )		
+
+		### Sanity checks 
+
+		assert( len( param ) == num_clusters ) 
+		assert( num_clusters >= 1 )
+
+		aDist = [getattr(self, d) for d in prior_dist]
 
 		aOut = [] 
 
-		zip_param = zip(*param)
-
-		atHyper = zip_param 
-
-		#atHyperMean, atHyperVar = zip_param[0], zip_param[1]
-
-		assert( num_clusters >= 1 )
-
-		#aBase = [self.base_distribution] if num_clusters == 1 else self.base_distribution
-
-		#sigma, mu = None, None 
-
 		for k in range(num_clusters):
 
-			#prior_mu, prior_sigma = atHyperMean[k]
-			#alpha, beta = atHyperVar[k]
-
-			#sigma = invgamma.rvs(alpha)
-			#mu = norm.rvs(loc=prior_mu,scale=prior_sigma)
-			
-			## atHyper has columns of hyperparameters 
-
-			#dist_param = self._eval_rvs( self.base_distribution, atHyper )
-
-			self._eval_rvs( self.base_distribution, atHyper )
-
-			#dist_param = [ self.base_distribution(*t).rvs() for t in atHyper ] 
+			dist_param = self._eval_rvs( prior_dist[k], param[k] )
 
 			for j in range(num_children):
 
-				#iid_norm = norm.rvs( loc=mu, scale=sigma, size=num_examples)
-				aIID = aDist[k].rvs( *dist_param, size=num_examples )
+				aIID = self._eval_rvs( aDist[k], dist_param, num_examples )
 
-				aOut.append( iid_norm )
+				#aIID = aDist[k]( *dist_param ).rvs( num_examples )
+
+				aOut.append( aIID )
 
 		return numpy.array(aOut)
 
@@ -473,6 +546,9 @@ class Strudel:
 	#=============================================================#
 	# Adjacency matrix helper functions 
 	#=============================================================#
+
+	def generate( self, method = "randmat" ):
+		pass 
 
 	def adjacency( self ):
 		"""
