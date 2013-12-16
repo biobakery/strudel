@@ -49,7 +49,7 @@ import sys
 import itertools 
 
 ####### namespace for distributions 
-from scipy.stats import invgamma, norm, uniform, logistic, gamma
+from scipy.stats import invgamma, norm, uniform, logistic, gamma, lognorm 
 from numpy.random import normal, multinomial, dirichlet 
 
 ####### namespace for plotting 
@@ -195,10 +195,10 @@ class Strudel:
 		Wrapper for type checking 
 		"""
 
-		if not (isinstance(pObject,list) or isinstance(pObject,tuple) or isinstance(pObject,array)):
-			aType = [pType]
-		else:
+		if (isinstance(pType,list) or isinstance(pType,tuple) or isinstance(pType,numpy.ndarray)):
 			aType = pType 
+		else:
+			aType = [pType]
 
 		return reduce( lambda x,y: x or y, [isinstance( pObject, t ) for t in aType], False )
 
@@ -214,7 +214,7 @@ class Strudel:
 		Disqualify string as a true "iterable" in this sense 
 		"""
 
-		return self._check( pObject, [list, tuple, array] )
+		return self._check( pObject, [list, tuple, numpy.ndarray] )
 
 
 	def _make_invariant( self, pObject, pMatch ):
@@ -239,6 +239,8 @@ class Strudel:
 			if self._is_list( pObject ):
 				if len(  pObject ) == 1:
 					aObject = [pObject for _ in range(iMatch)]
+				elif len( pObject ) == iMatch:
+					aObject = pObject 
 				else:
 					raise Exception("Length of object does not match specified match function")
 
@@ -291,7 +293,7 @@ class Strudel:
 		
 		return self._eval_rvs( H, self.base_param, ( shape if iRow else iCol ) )
 
-	def randmix( self, shape = 10, param = [(0,1), (5,1)], pi = [0.5,0.5], adj = False ):
+	def randmix( self, shape = 10, pi = [0.5,0.5], adj = False ):
 		"""
 		Draw N copies from a mixture distribution with pdf $ pi^T * H( \cdot | param ) $
 		
@@ -315,6 +317,8 @@ class Strudel:
 		except TypeError:
 			iRow, iCol = shape[0], shape[1]
 
+		param = self._make_invariant( self.base_param, pi )
+
 		H = self.base_distribution 
 		
 		K = len( pi )
@@ -323,7 +327,7 @@ class Strudel:
 		if isinstance( self.base, list ) or isinstance( self.base, tuple ):
 			H = H
 		elif isinstance( self.base, str ):
-			H = [H for _ in K]
+			H = [H for _ in range(K)]
 
 		assert( len( param ) == len( pi ) )
 		
