@@ -90,9 +90,12 @@ class Strudel:
 
 		self.hash_conjugate		= { "normal" : ("normal", "invgamma"),
 									 } 
-
+		### Distributions parameters 
 		### Let the base distribution be just a single distribution, or an arbitrary tuple of distributions 
-		self.base 				= "uniform"
+		
+		### Base distribution 
+
+		self.base 				= "normal"
 		
 		self.base_param 		= (0,1)
 
@@ -100,13 +103,26 @@ class Strudel:
 
 		self.base_distribution	= self._eval( self.hash_distributions, self.base )
 
-		#self.base_distribution	= self.hash_distributions[self.base] #scipy stats object; uniform by default  
+		### Prior distribution 
+
+		self.prior 				= ["normal","invgamma"]
+
+		self.prior_distribution = self._eval( self.hash_distributions, self.prior )
+
+		self.prior_shape		= 100 
+
+		### Linkage 
 
 		self.linkage 			= [] 
+
+
+		## Noise 
 
 		self.noise_param		= 0 # a value between [0,1]; controls amount of noise added to the test distribution 
 
 		self.noise_distribution = lambda variance: norm(0,variance)
+
+		### Auxillary 
 
 		self.small 				= 0.001
 
@@ -180,6 +196,12 @@ class Strudel:
 
 	def _eval_rvs( self, aBase, aParam, pEval = () ):
 		return self._rvs( self._eval( aBase, aParam, "*")  , pEval)
+
+	def _len( self, pObj ):
+		if self._is_iter( pObj ):
+			return len(pObj)
+		else:
+			return 1 
 
 	def _convert( self, pObj, iLen = None ):
 		"""
@@ -270,8 +292,11 @@ class Strudel:
 	def set_noise( self, noise ):
 		self.noise_param = noise 
 
-	def set_param( self, param ):
+	def set_base_param( self, param ):
 		self.base_param = param 
+
+	def set_shape( self, shape_param ):
+		self.shape = shape_param 
 
 	#========================================#
 	# Base generation 
@@ -293,7 +318,7 @@ class Strudel:
 		
 		return self._eval_rvs( H, self.base_param, ( shape if iRow else iCol ) )
 
-	def randmix( self, shape = 10, pi = [0.5,0.5], adj = False ):
+	def randmix( self, shape = None, pi = None, adj = False ):
 		"""
 		Draw N copies from a mixture distribution with pdf $ pi^T * H( \cdot | param ) $
 		
@@ -310,6 +335,14 @@ class Strudel:
 			N copies from mixture distribution $\sum_{k=1}^{K} \pi_k H(.| \theta )$ 
 		
 		""" 
+
+		if not shape:
+			shape = self.shape 
+
+		if not pi:
+			iBase = self._len( self.base )
+			pi = [1.0/iBase]*iBase 
+
 		iRow, iCol = None, None 
 
 		try:
@@ -338,7 +371,6 @@ class Strudel:
 			return self._eval_rvs( H[z], param[z], () )
 
 		return [[ _draw() for _ in range(iCol)] for _ in (range(iRow) if iRow else range(1)) ]
-
 
 
 	def randclust( self, num_clusters = 3, num_children = 3, num_examples = 10, dist = ["normal", "normal", "normal"], 
@@ -370,6 +402,10 @@ class Strudel:
 		Notes
 		----------
 
+			Do I want the base distribution to be the target distribution or the prior distribution? 
+			I think making it the prior distribution makes more sense in the framework, but 
+			making it the target makes it so much easier to use. 
+
 			Example
 			{w} = G < -- x --> F = {y,z}
 
@@ -389,6 +425,8 @@ class Strudel:
 
 		if number_clusters != len(dist)
 		"""
+
+		dist = self._make_invariant( dist, param )
 
 		aDist = [getattr(self, d) for d in dist]
 
