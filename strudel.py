@@ -124,6 +124,10 @@ class Strudel:
 
 		self.shape 				= 100 #number of samples to generate 
 
+		self.num_var			= 10
+
+		self.num_sample 		= self.shape  		
+
 		self.base_distribution	= self._eval( self.hash_distributions, self.base )
 
 		### Prior distribution 
@@ -261,13 +265,13 @@ class Strudel:
 		return self._rvs( self._eval( aBase, aParam, "*")  , pEval)
 
 	def _len( self, pObj ):
+		"""
+		Tuples are always considered single objects 
+		"""
 		if self._is_list( pObj ):
 			return len(pObj)
 		elif self._is_tuple( pObj ):
-			if self._is_tuple( pObj[0] ):
-				return len(pObj)
-			else:
-				return 1
+			return 1 
 		else:
 			return 1 
 
@@ -513,7 +517,7 @@ class Strudel:
 
 		"""
 
-		num_clusters = len( self.base )
+		num_clusters = self._len( self.base )
 
 		param = self.prior_param 
 		param = self._make_invariant( param, num_clusters )
@@ -525,18 +529,18 @@ class Strudel:
 		prior_dist = self._make_invariant( prior_dist ,num_clusters )		
 
 		### Sanity assertion checks 
-		assert( len( param ) == num_clusters ), "Number of clusters is not equal to the number of prior parameters"
+		assert( self._len( param ) == num_clusters ), "Number of clusters is not equal to the number of prior parameters"
 		assert( num_clusters >= 1 )
 
 		aOut = [] 
 
 		for k in range(num_clusters):
 
-			dist_param = self._eval_rvs( prior_dist[k], param[k] )
+			dist_param = self._eval_rvs( prior_dist[k] if num_clusters != 1 else prior_dist, param[k] if num_clusters != 1 else param )
 
 			for j in range(num_children):
 
-				aIID = self._eval_rvs( self.base_distribution[k], dist_param, shape )
+				aIID = self._eval_rvs( self.base_distribution[k] if num_clusters != 1 else self.base_distribution, dist_param, shape )
 
 				aOut.append( aIID )
 
@@ -749,18 +753,25 @@ class Strudel:
 
 		return self.indicator( logistic.cdf( pArray ), aInterval )
 
-	def generate_linkage( self, num_clusters = 3, num_children = 3, num_examples = 20):
+	def generate_linkage( self, shape = None, method = "randmat" ):
 		"""
 		Input: 
 		Output: Tuple (predictor matrix, response matrix) 
 		"""
+
+		if not shape:
+			shape = self.shape 
+
+		num_clusters = self._len( self.base )
+		num_examples = self.shape 
 
 		aBeta = uniform.rvs(size=num_clusters)
 
 		iRows = num_clusters * num_children
 		iCols = num_examples 
 		
-		predictor_matrix = self.generate_clustered_data( num_clusters, num_children, num_examples )
+		#predictor_matrix = self.randnet( num_clusters, num_children, num_examples )
+		predictor_matrix = self.randmat( )
 		raw = predictor_matrix[:]
 		response_matrix = []
 
