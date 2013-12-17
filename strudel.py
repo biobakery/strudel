@@ -42,6 +42,8 @@ match up so length is preserved
 To Do 
 
 * I need prior distributions to be tuples, as per invariance principle 
+* Make the _check function more arbitrary, not just for checking types, but checking the truth value for other useful features 
+
 
 * meta _make_invariant should be written to check against bad prior types 
 * Let's not reinvent the wheel; for more complicated Bayesian networks, should look at PyMC and implementations such as bnlearn 
@@ -73,9 +75,9 @@ class Strudel:
 
 		class linear: ## wrapper for the linear "distribution" method 
 			def __init__( self, param1 = None, param2 = None ):
-				self.object = None 
-				if param1 and param2:
-					self.object = lambda shape: numpy.linspace( param1, param2, shape )
+				self.rvs = lambda shape: numpy.linspace( param1, param2, shape ) 
+				self.param1 = param1
+				self.param2 = param2 
 
 		class dirichlet: ## wrapper for the dirichlet method 
 			def __init__( self, alpha = None ):
@@ -98,7 +100,7 @@ class Strudel:
 									}
 
 		self.hash_conjugate		= { "normal" 	: ("normal", "invgamma"), 
-									"uniform"	: "pareto"
+									"uniform"	: "pareto", 
 									 } 
 
 		self.hash_num_param		= {"normal"		: 2,
@@ -108,6 +110,8 @@ class Strudel:
 									"pareto"	: 2,
 									"dirichlet"	: "?",
 									"beta"		: 2, }
+
+		self.generation_methods = ["identity", "half_circle", "sine", "parabola", "cubic", "log", "vee"]
 
 		### Distributions parameters 
 		### Let the base distribution be just a single distribution, or an arbitrary tuple of distributions 
@@ -157,12 +161,19 @@ class Strudel:
 	def __eval( self, base, param, pEval = None ):
 		"""
 		One-one evaluation helper function for _eval 
-
-		By necessity in _eval, handle one-to-many calls 
 		""" 
 
 		if isinstance( base, dict ): ## evaluate dict
-			return base[param] 
+			try:
+				return base[param] 
+			except KeyError: 
+			## This sometimes happens when you meant for (k1,k2) 
+			## to be mapped across the dictionary, and not read as literal key.
+			## fail gracefully in this case. 
+				try:	
+					return tuple([base[p] for p in param])
+				except Exception:
+					return None 
 		elif isinstance( param, str ) and param[0] == ".": ##"dot notation"
 			param = param[1:]
 			return getattr( base, param )( pEval )
@@ -170,8 +181,23 @@ class Strudel:
 			return base(*param) if pEval == "*" else base( param )
 
 	def __eval_many( self, base, aParam, pEval = None ):
-		if self._is_iter( aParam ):
-			return tuple([self._eval( base, p, pEval) for p in aParam])
+		"""
+		One-to many evaluation helper function for _eval 
+
+		() -> 
+			try as literal
+			except Exception 
+				try *()
+			For dictionaries, try as literal 
+			except KeyError
+				try map () 
+		[] -> map, no questions asked  
+		"""
+
+		if self._is_tuple( aParam ):
+			return self.__eval( base, aParam, pEval )
+		elif self._is_list( aParam ) or self._is_array( aParam ): 
+			return [self._eval( base, p, pEval) for p in aParam]
 		else:
 			return self._eval( base, aParam, pEval )
 
@@ -205,27 +231,17 @@ class Strudel:
 		
 		pOut = None 
 
-		pType = None 
-
-		if self._is_list( aParam ):
-			pType = list 
-		elif self._is_tuple( aParam ):
-			pType = tuple 
-		else:
-			pType = lambda x: x 
-
 		if self._is_iter( aBase ) and self._is_iter( aParam[0] ): ## Both aBase and aParam are iterables in 1-1 fashion
 			assert( len(aBase) == len(aParam) )
-			pOut = pType( [self.__eval(f,x,pEval) for f,x in zip(aBase,aParam)] )
-
-		elif ( isinstance( aBase, tuple ) or isinstance( aBase, list ) ) and ( isinstance( aParam, tuple ) or 
-			isinstance( aParam, list ) or isinstance( aParam, str )): ## aParam same for all in aBase; many to one 
-			aParam = [aParam for _ in range(len(aBase))]
 			pOut = [self.__eval(f,x,pEval) for f,x in zip(aBase,aParam)]
 
-		else: ## aBase and aParam are actually single objects 
+		elif self._is_iter( aBase ) and (self._is_tuple( aParam ) or self._is_str( aParam )): ## aParam same for all in aBase; many to one 
+			aParam = [aParam for _ in range(len(aBase))] 
+			pOut = [self.__eval(f,x,pEval) for f,x in zip(aBase,aParam)]
+
+		elif not self._is_iter( aBase ): ## aBase and aParam are actually single objects 
+
 			try: 
-				
 				pOut = self.__eval( aBase, aParam, pEval )
 			except Exception: ## last resort is one to many, since this is ambiguous; aParam is usually always an iterable 
 				try:
@@ -245,8 +261,13 @@ class Strudel:
 		return self._rvs( self._eval( aBase, aParam, "*")  , pEval)
 
 	def _len( self, pObj ):
-		if self._is_iter( pObj ):
+		if self._is_list( pObj ):
 			return len(pObj)
+		elif self._is_tuple( pObj ):
+			if self._is_tuple( pObj[0] ):
+				return len(pObj)
+			else:
+				return 1
 		else:
 			return 1 
 
@@ -259,7 +280,7 @@ class Strudel:
 			iLen = 1 
 		return [pObj for _ in range(iLen)]
 
-	def _check( self, pObject, pType ):
+	def _check( self, pObject, pType, pFun = isinstance, pClause = "or" ):
 		"""
 		Wrapper for type checking 
 		"""
@@ -277,6 +298,9 @@ class Strudel:
 	def _is_tuple( self, pObject ):
 		return self._check( pObject, tuple )
 
+	def _is_array( self, pObject ):
+		return self._check( pObject, numpy.ndarray )
+
 	def _is_iter( self, pObject ):
 		"""
 		Is the object a list or tuple? 
@@ -285,6 +309,8 @@ class Strudel:
 
 		return self._check( pObject, [list, tuple, numpy.ndarray] )
 
+	def _is_str( self, pObject ):
+		return self._check( pObject, str )
 
 	def _make_invariant( self, pObject, pMatch ):
 		"""
@@ -313,11 +339,11 @@ class Strudel:
 				else:
 					raise Exception("Length of object does not match specified match function")
 
-			elif self._is_tuple( pObject ):
-				aObject = [pObject for _ in range(iMatch)]
+			elif self._is_tuple( pObject ): ## Size is 1 
+				aObject = pObject if iMatch == 1 else [pObject for _ in range(iMatch)]
 
-			else:
-				aObject = [pObject for _ in range(iMatch)]
+			else: ## Size is 1 
+				aObject = pObject if iMatch == 1 else [pObject for _ in range(iMatch)]
 
 		return aObject 
 
@@ -342,9 +368,7 @@ class Strudel:
 		self.base = aDist 
 		self.base_distribution = self._eval( self.hash_distributions, self.base )
 		self.prior = self._eval( self.hash_conjugate, self.base ) 
-		self.prior_distribution = self._eval( self.hash_distributions, self.prior )
-
-		return self.base_distribution 
+		self.prior_distribution = self._eval( self.hash_distributions, self.prior ) if self.prior else None 
 
 	def set_prior( self, aDist ):
 
@@ -363,13 +387,15 @@ class Strudel:
 	def set_noise( self, noise ):
 		self.noise_param = noise 
 
-	def set_base_param( self, param ):
-		self.base_param = param 
-
 	def set_shape( self, shape_param ):
 		self.shape = shape_param 
 
+	def set_base_param( self, param ):
+		param = self._make_invariant( param, self._len( self.base ) ) 
+		self.base_param = param 
+
 	def set_prior_param( self, prior_param ):
+		prior_param = self._make_invariant( prior_param, self._len( self.base ) )
 		self.prior_param = prior_param 
 
 	def set_prior_shape( self, prior_shape ):
@@ -452,20 +478,17 @@ class Strudel:
 
 	#[((0,0.01),(1,1)), ((5,0.01),(2,1)), ((10,0.01),(3,1))]
 
-	def randclust( self, num_clusters = 3, num_children = 2, num_examples = None, prior_dist = None, 
-			param = None, adj = False ):
+	def randnet( self, num_children = 2, shape = None, adj = False ):
 		"""
 
-		Generate clustered data by graphical model representation.
+		Generate random clustered network by graphical model representation.
 
 		Parameters
 		---------------
 
-		  	num_clusters : int 
-		  		Number of iid clusters in the graphical model 
 			num_children : int 
 				children that share prior for each cluster 
-			num_examples : int 
+			shape : int 
 				number of samples per distribution 
 			dist : object or list of objects 
 				distributions to be used per cluster 
@@ -490,41 +513,20 @@ class Strudel:
 
 		"""
 
+		num_clusters = len( self.base )
 
-
-		"""
-		### Some exception handling 
-
-		if isinstance( dist, tuple ) or isinstance( dist, list ): 
-
-			aDist = [getattr(self, d) for d in dist]
-		elif isinstance( dist, str ): ### passing in a string that the module recognizes 
-			pass
-
-
-		if number_clusters != len(dist)
-		"""
-
-
-		if not param:
-			param = self.prior_param 
-
+		param = self.prior_param 
 		param = self._make_invariant( param, num_clusters )
 
-		if not num_examples:
-			num_examples = self.shape 
-
-		if not prior_dist:
-			prior_dist = self.prior_distribution 
-			
+		if not shape:
+			shape = self.shape 
+	
+		prior_dist = self.prior_distribution 
 		prior_dist = self._make_invariant( prior_dist ,num_clusters )		
 
-		### Sanity checks 
-
-		assert( len( param ) == num_clusters ) 
+		### Sanity assertion checks 
+		assert( len( param ) == num_clusters ), "Number of clusters is not equal to the number of prior parameters"
 		assert( num_clusters >= 1 )
-
-		aDist = [getattr(self, d) for d in prior_dist]
 
 		aOut = [] 
 
@@ -534,9 +536,7 @@ class Strudel:
 
 			for j in range(num_children):
 
-				aIID = self._eval_rvs( aDist[k], dist_param, num_examples )
-
-				#aIID = aDist[k]( *dist_param ).rvs( num_examples )
+				aIID = self._eval_rvs( self.base_distribution[k], dist_param, shape )
 
 				aOut.append( aIID )
 
@@ -571,45 +571,47 @@ class Strudel:
 	## Incorporate useful elements from it in the future 
 	#==============================================================================#
 
-	def identity( self, shape = 100 ):
+	### all of these rvs's should be numpy arrays 
+
+	def identity( self, shape = 100, rvs = array([]) ):
 		H = self.base_distribution( *self.base_param )
-		v = H.rvs( shape )
+		v = H.rvs( shape ) if not rvs.any() else rvs 
 		x = v + self.noise_distribution( self.noise_param ).rvs( shape )
 		return v,x 
 
-	def half_circle( self, shape = 100 ): 
+	def half_circle( self, shape = 100, rvs = array([]) ): 
 		H = self.base_distribution( *self.base_param )
-		v = H.rvs( shape )
+		v = H.rvs( shape ) if not rvs.any() else rvs 
 		x = numpy.sqrt( 1-v**2 ) + self.noise_distribution( self.noise_param ).rvs( shape )
 		return v,x 
 
-	def sine( self, shape = 100 ):
+	def sine( self, shape = 100, rvs = array([]) ):
 		H = self.base_distribution( *self.base_param )
-		v = H.rvs( shape )
+		v = H.rvs( shape ) if not rvs.any() else rvs 
 		x = numpy.sin( v*numpy.pi ) + self.noise_distribution( self.noise_param ).rvs( shape )
 		return v,x 
 	
-	def parabola( self, shape = 100 ):
+	def parabola( self, shape = 100, rvs = array([]) ):
 		H = self.base_distribution( *self.base_param )
-		v = H.rvs( shape )
+		v = H.rvs( shape ) if not rvs.any() else rvs 
 		x = v**2 + self.noise_distribution( self.noise_param ).rvs( shape )
 		return v,x 
 
-	def cubic( self, shape = 100):
+	def cubic( self, shape = 100, rvs = array([]) ):
 		H = self.base_distribution( *self.base_param )
-		v = H.rvs( shape )
+		v = H.rvs( shape ) if not rvs.any() else rvs 
 		x = v**3 + self.noise_distribution( self.noise_param ).rvs( shape )
 		return v,x 
 
-	def log( self, shape = 100):
+	def log( self, shape = 100, rvs = array([]) ):
 		H = self.base_distribution( *self.base_param )
-		v = H.rvs( shape )
+		v = H.rvs( shape ) if not rvs.any() else rvs 
 		x = numpy.log( 1 + v + self.small ) + self.noise_distribution( self.noise_param ).rvs( shape )
 		return v,x 
 
-	def vee( self, shape = 100 ): 
+	def vee( self, shape = 100, rvs = array([]) ): 
 		H = self.base_distribution( *self.base_param )
-		v = H.rvs( shape )
+		v = H.rvs( shape ) if not rvs.any() else rvs 
 		x = numpy.sqrt( v**2 ) + self.noise_distribution( self.noise_param ).rvs( shape )
 		return v,x 
 
@@ -617,18 +619,109 @@ class Strudel:
 	# Pipelines  
 	#=============================================================#
 	
+	def generate_synthetic_data( self, num_var, sparsity ):
+		"""
+		Pipeline for synthetic data generation 
 
-	def run( self ):
-		self.set_noise( 0.01 )
-		self.set_base("linear")
-		self.set_param((-1,1))
+		Parameters
+		-------------
 
-		for item in ["identity", "half_circle", "sine", "parabola", "cubic", "log", "vee"]:
-			figure() 
-			v,x = getattr(self, item)()
-			print v
-			print x 
-			plot(v,x)
+			num_var : int 
+				number of variables in the dataset 
+
+			sparsity : float 
+				portion of the dataset that is random noise 
+
+		Returns 
+		------------
+
+			X : numpy.ndarray 
+				Dataset containing `num_var` rows and `self.shape` columns 
+
+		Notes
+		-----------
+
+			* Fix so that random data generation propagates in a greedy fashion. 
+
+		"""
+
+		### Set up correct parameters 
+		#self.set_base( "linear" ); self.set_base_param((-1,1)) ## This if I want linear data generation 
+
+		aMethods = [getattr(self, m) for m in self.generation_methods]
+		iMethod = len( aMethods )
+
+		assert( 0<= sparsity <=1 ), "sparsity parameter must be a float between 0 and 1"
+		prob_random = sparsity ## probability of generating random adjacency 
+		prob_linked = 1-prob_random ## probability of generating true adjacency 
+
+		## Currently, assume that each method in aMethods is equally likely to be chosen 
+		prob_method = [1.0/iMethod] * iMethod 
+
+		num_samples = self.shape 
+
+		## Initialize adjacency matrix 
+		A = numpy.zeros( (num_var, num_var) )
+
+		## Initialize dataset 
+		X = numpy.zeros( (num_var, num_samples) )
+
+		for i,j in itertools.product( range(num_var), range(num_var) ):
+			
+			if i > j: ## already visited nodes 
+				continue 
+			elif i == j:
+				A[i][j] = 1
+			else:
+				if X[i].any() and X[j].any():
+					continue ## both already exists, so continue. this should not arise. erase when sure it's working. 
+				elif X[i].any() and not X[j].any():
+					bI = self._categorical( [prob_random,prob_linked] ) ##binary indicator 
+					if not bI:
+						X[j] = self.randmat( num_samples )
+						## A[i][j] = 0 
+					else: 
+						cI = self._categorical( prob_method )
+						_, X[j] = aMethods[cI]( shape = num_samples, rvs = X[i] )
+						A[i][j] = 1 
+				elif not X[i].any() and X[j].any():
+					bI = self._categorical( [prob_random,prob_linked] ) ##binary indicator 
+					if not bI:
+						X[i] = self.randmat( num_samples )
+						## A[i][j] = 0 
+					else: 
+						cI = self._categorical( prob_method )
+						_, X[i] = aMethods[cI]( shape = num_samples, rvs = X[j] )
+						A[i][j] = 1 
+				else: ## both need to be initialized 
+					## Random or linkage?  
+					bI = self._categorical( [prob_random,prob_linked] ) ##binary indicator 
+					if not bI:
+						X[i] = self.randmat( num_samples )
+						X[j] = self.randmat( num_samples ) 
+						## A[i][j] = 0 
+					else: 
+						cI = self._categorical( prob_method )
+						X[i], X[j] = aMethods[cI]( shape = num_samples )
+						A[i][j] = 1
+
+		return X,A 
+
+	def run( self, method = "shapes" ):
+		if method == "shapes":
+
+			self.set_noise( 0.01 )
+			self.set_base("linear")
+			self.set_base_param((-1,1))
+
+			for item in ["identity", "half_circle", "sine", "parabola", "cubic", "log", "vee"]:
+				figure() 
+				v,x = getattr(self, item)()
+				print v
+				print x 
+				plot(v,x)
+		else:
+			pass 
 
 	#=============================================================#
 	# Linkage helper functions   
