@@ -14,6 +14,8 @@ URL
 Notes 
 -----------
 
+* Fix transitivity in the random data generation; bug is really annoying. 
+
 * Invariance principle: generally, everything should be a list or array when passed into distribution generation functions, if they are not, 
 match up so length is preserved 
 
@@ -713,13 +715,21 @@ class Strudel:
 						X[i], X[j] = aMethods[cI]( shape = num_samples )
 						A[i][j] = 1; A[j][i] = 1
 
-		def _parser( A ):
+		def _enforce_transitivity( A ):
 			"""
 			make sure transitivity holds
 			"""
-			pass 
+			first_row = A[0]
+			iCol = len(first_row)
+			for i,j in itertools.combinations( range(iCol), 2 ):
+				if i == 0 or j == 0:
+					continue 
+				elif first_row[i] and first_row[j]:
+					A[i][j] = 1 ; A[j][i] = 1
+
+			return A
 				
-		return X,A 
+		return X,A
 
 	def run( self, method = "shapes" ):
 		if method == "shapes":
