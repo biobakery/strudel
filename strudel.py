@@ -62,7 +62,7 @@ from scipy.stats import invgamma, norm, uniform, logistic, gamma, lognorm, beta,
 from numpy.random import normal, multinomial, dirichlet 
 
 ####### namespace for plotting 
-from pylab import hist, plot, figure
+from pylab import hist, plot, figure, scatter
 
 class Strudel:
 	### Avoid lazy evaluation when possible, to avoid depency problems 
@@ -88,7 +88,7 @@ class Strudel:
 			def rvs( self, shape ):
 				return self.object( shape )
 
-		self.hash_distributions	= { "uniform"	: uniform, 
+		self.hash_distributions	= { "uniform"	: uniform, #This distribution is constant between loc and loc + scale.
 									"normal"	: norm, 
 									"linear"	: linear,
 									"gamma"		: gamma, 
@@ -672,31 +672,35 @@ class Strudel:
 
 		for i,j in itertools.product( range(num_var), range(num_var) ):
 			
-			if i > j: ## already visited nodes 
+			### BUGBUG: need to implement associativity 
+
+			if i > j: ## already visited nodes
+				fVal = A[j][i]
+				A[i][j] = fVal 
 				continue 
 			elif i == j:
 				A[i][j] = 1
 			else:
-				if X[i].any() and X[j].any():
-					continue ## both already exists, so continue. this should not arise. erase when sure it's working. 
-				elif X[i].any() and not X[j].any():
+				if X[i].any() and X[j].any(): ##make sure transitive property of association holds 
+					continue 
+				elif X[i].any() and not(X[j].any()):
 					bI = self._categorical( [prob_random,prob_linked] ) ##binary indicator 
 					if not bI:
 						X[j] = self.randmat( num_samples )
 						## A[i][j] = 0 
 					else: 
 						cI = self._categorical( prob_method )
-						_, X[j] = aMethods[cI]( shape = num_samples, rvs = X[i] )
+						X[i],X[j] = aMethods[cI]( shape = num_samples, rvs = X[i] ) #v,x 
 						A[i][j] = 1 
-				elif not X[i].any() and X[j].any():
+				elif not(X[i].any()) and X[j].any():
 					bI = self._categorical( [prob_random,prob_linked] ) ##binary indicator 
 					if not bI:
 						X[i] = self.randmat( num_samples )
 						## A[i][j] = 0 
 					else: 
 						cI = self._categorical( prob_method )
-						_, X[i] = aMethods[cI]( shape = num_samples, rvs = X[j] )
-						A[i][j] = 1 
+						X[j], X[i] = aMethods[cI]( shape = num_samples, rvs = X[j] ) #v,x 
+						A[i][j] = 1; A[j][i] = 1
 				else: ## both need to be initialized 
 					## Random or linkage?  
 					bI = self._categorical( [prob_random,prob_linked] ) ##binary indicator 
@@ -707,8 +711,14 @@ class Strudel:
 					else: 
 						cI = self._categorical( prob_method )
 						X[i], X[j] = aMethods[cI]( shape = num_samples )
-						A[i][j] = 1
+						A[i][j] = 1; A[j][i] = 1
 
+		def _parser( A ):
+			"""
+			make sure transitivity holds
+			"""
+			pass 
+				
 		return X,A 
 
 	def run( self, method = "shapes" ):
@@ -723,7 +733,7 @@ class Strudel:
 				v,x = getattr(self, item)()
 				print v
 				print x 
-				plot(v,x)
+				scatter(v,x)
 		else:
 			pass 
 
