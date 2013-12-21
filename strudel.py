@@ -672,62 +672,90 @@ class Strudel:
 		## Initialize dataset 
 		X = numpy.zeros( (num_var, num_samples) )
 
-		for i,j in itertools.product( range(num_var), range(num_var) ):
-			
-			### BUGBUG: need to implement associativity 
+		bool_list = [self._categorical( [prob_random, prob_linked] ) for i in range(num_var) ]
+		print bool_list  
 
-			if i > j: ## already visited nodes
-				fVal = A[j][i]
-				A[i][j] = fVal 
-				continue 
-			elif i == j:
-				A[i][j] = 1
+		base_rv = array([]) 
+
+		## Populate the X matrix and identity elements in A matrix 
+		for i in range(num_var):
+			A[i][i] = 1 
+			if bool_list[i]: 
+				if not base_rv.any():
+					base_rv = self.randmat( num_samples ) 
+					X[i] = base_rv 
+				else:
+					cI = self._categorical( prob_method )
+					_, transformed_data = aMethods[cI]( shape = num_samples, rvs = base_rv )
+					X[i] = transformed_data 
 			else:
-				if X[i].any() and X[j].any(): ##make sure transitive property of association holds 
-					continue 
-				elif X[i].any() and not(X[j].any()):
-					bI = self._categorical( [prob_random,prob_linked] ) ##binary indicator 
-					if not bI:
-						X[j] = self.randmat( num_samples )
-						## A[i][j] = 0 
-					else: 
-						cI = self._categorical( prob_method )
-						X[i],X[j] = aMethods[cI]( shape = num_samples, rvs = X[i] ) #v,x 
-						A[i][j] = 1 
-				elif not(X[i].any()) and X[j].any():
-					bI = self._categorical( [prob_random,prob_linked] ) ##binary indicator 
-					if not bI:
-						X[i] = self.randmat( num_samples )
-						## A[i][j] = 0 
-					else: 
-						cI = self._categorical( prob_method )
-						X[j], X[i] = aMethods[cI]( shape = num_samples, rvs = X[j] ) #v,x 
-						A[i][j] = 1; A[j][i] = 1
-				else: ## both need to be initialized 
-					## Random or linkage?  
-					bI = self._categorical( [prob_random,prob_linked] ) ##binary indicator 
-					if not bI:
-						X[i] = self.randmat( num_samples )
-						X[j] = self.randmat( num_samples ) 
-						## A[i][j] = 0 
-					else: 
-						cI = self._categorical( prob_method )
-						X[i], X[j] = aMethods[cI]( shape = num_samples )
-						A[i][j] = 1; A[j][i] = 1
+				X[i] = self.randmat( num_samples )
+				
+		## Populate the A matrix for groups 
 
-		def _enforce_transitivity( A ):
-			"""
-			make sure transitivity holds
-			"""
-			first_row = A[0]
-			iCol = len(first_row)
-			for i,j in itertools.combinations( range(iCol), 2 ):
-				if i == 0 or j == 0:
-					continue 
-				elif first_row[i] and first_row[j]:
-					A[i][j] = 1 ; A[j][i] = 1
+		linkage_list = itertools.compress( range(num_var), bool_list )
 
-			return A
+		for i,j in itertools.combinations( linkage_list, 2 ): 
+			A[i][j] = 1 ; A[j][i] = 1 
+
+		def _complicated_method( ):
+
+			for i,j in itertools.product( range(num_var), range(num_var) ):
+				
+				### BUGBUG: need to implement associativity 
+
+				if i > j: ## already visited nodes
+					fVal = A[j][i]
+					A[i][j] = fVal 
+					continue 
+				elif i == j:
+					A[i][j] = 1
+				else:
+					if X[i].any() and X[j].any(): ##make sure transitive property of association holds 
+						continue 
+					elif X[i].any() and not(X[j].any()):
+						bI = self._categorical( [prob_random,prob_linked] ) ##binary indicator 
+						if not bI:
+							X[j] = self.randmat( num_samples )
+							## A[i][j] = 0 
+						else: 
+							cI = self._categorical( prob_method )
+							X[i],X[j] = aMethods[cI]( shape = num_samples, rvs = X[i] ) #v,x 
+							A[i][j] = 1 
+					elif not(X[i].any()) and X[j].any():
+						bI = self._categorical( [prob_random,prob_linked] ) ##binary indicator 
+						if not bI:
+							X[i] = self.randmat( num_samples )
+							## A[i][j] = 0 
+						else: 
+							cI = self._categorical( prob_method )
+							X[j], X[i] = aMethods[cI]( shape = num_samples, rvs = X[j] ) #v,x 
+							A[i][j] = 1; A[j][i] = 1
+					else: ## both need to be initialized 
+						## Random or linkage?  
+						bI = self._categorical( [prob_random,prob_linked] ) ##binary indicator 
+						if not bI:
+							X[i] = self.randmat( num_samples )
+							X[j] = self.randmat( num_samples ) 
+							## A[i][j] = 0 
+						else: 
+							cI = self._categorical( prob_method )
+							X[i], X[j] = aMethods[cI]( shape = num_samples )
+							A[i][j] = 1; A[j][i] = 1
+
+			def _enforce_transitivity( A ):
+				"""
+				make sure transitivity holds
+				"""
+				first_row = A[0]
+				iCol = len(first_row)
+				for i,j in itertools.combinations( range(iCol), 2 ):
+					if i == 0 or j == 0:
+						continue 
+					elif first_row[i] and first_row[j]:
+						A[i][j] = 1 ; A[j][i] = 1
+
+				return A
 				
 		return X,A
 
