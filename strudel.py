@@ -52,6 +52,9 @@ To Do
 
 """
 
+####### halla and strudel exists together 
+import halla 
+
 import scipy
 import numpy 
 from numpy import array 
@@ -60,7 +63,7 @@ import sys
 import itertools 
 
 ####### namespace for distributions 
-from scipy.stats import invgamma, norm, uniform, logistic, gamma, lognorm, beta, pareto  
+from scipy.stats import invgamma, norm, uniform, logistic, gamma, lognorm, beta, pareto, pearsonr  
 from numpy.random import normal, multinomial, dirichlet 
 
 ####### namespace for plotting 
@@ -120,9 +123,9 @@ class Strudel:
 		
 		### Base distribution 
 
-		self.base 				= "normal"
+		self.base 				= "uniform"
 		
-		self.base_param 		= (0,1)
+		self.base_param 		= (-1,2)
 
 		self.shape 				= 100 #number of samples to generate 
 
@@ -776,6 +779,44 @@ class Strudel:
 			pass 
 
 	#=============================================================#
+	# Data visualization helpers 
+	#=============================================================#
+
+	def view( self, X, A, method = "pearson" ):
+
+		pMethod = method 
+		
+		hashDiscretize = {"pearson": False, "spearman": False, 
+						"mi": True, "mid": True, "adj_mi":True, 
+						"adj_mid": True, "norm_mi": True, "norm_mid": True }
+
+		hashMethods = {"pearson": halla.distance.cor, "norm_mi": halla.distance.norm_mi,
+						"mi": halla.distance.mi}
+
+		pFunDiscretize = halla.stats.discretize 
+
+		pFunMethod = hashMethods[pMethod]
+
+		if hashDiscretize[pMethod]: 
+			X = pFunDiscretize(X)
+
+		iRow, iCol = A.shape 
+		assert( iRow == iCol )
+		
+		aOut = [] 
+
+		for i,j in itertools.product(range(iRow),range(iCol)):
+			aOut.append( [(i,j), pFunMethod(X[i],X[j]), A[i][j]] ) 
+
+		return array(aOut)
+
+	def roc( self, true_labels, prob_vec ):
+		fpr, tpr, thresholds = halla.stats.roc_curve( true_labels, prob_vec )
+		roc_auc = halla.stats.auc( fpr, tpr )
+		halla.stats.plot_roc( fpr, tpr )
+		return roc_auc 
+
+	#=============================================================#
 	# Linkage helper functions   
 	#=============================================================#
 
@@ -830,6 +871,8 @@ class Strudel:
 			## to generate synthetic metadata linked by an appropriate linkage function 
 
 		return predictor_matrix, response_matrix
+
+
 
 #if __name__ == "__main__":
 	#pass 
