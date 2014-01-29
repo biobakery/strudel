@@ -842,7 +842,7 @@ class Strudel:
 
 		return self.indicator( logistic.cdf( pArray ), aInterval )
 
-	def generate_linkage( self, shape = None, method = "randmat" ):
+	def generate_linkage( self, num_children = 2, shape = None, iClass = 5, method = "randmat" ):
 		"""
 		Input: 
 		Output: Tuple (predictor matrix, response matrix) 
@@ -867,11 +867,10 @@ class Strudel:
 		while raw.any():
 			
 			pCluster, raw = raw[:num_clusters], raw[num_clusters:]
-			response_matrix.append( self.classify( numpy.dot( aBeta, pCluster ), iClass = 5 ) ) ## currently the `classify` function is used to discretize the continuous data 
+			response_matrix.append( self.classify( numpy.dot( aBeta, pCluster ), iClass ) ) ## currently the `classify` function is used to discretize the continuous data 
 			## to generate synthetic metadata linked by an appropriate linkage function 
 
 		return predictor_matrix, response_matrix
-
 
 
 #if __name__ == "__main__":
