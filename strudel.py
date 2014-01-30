@@ -14,8 +14,6 @@ URL
 Notes 
 -----------
 
-* Fix transitivity in the random data generation; bug is really annoying. 
-
 * Invariance principle: generally, everything should be a list or array when passed into distribution generation functions, if they are not, 
 match up so length is preserved 
 
@@ -46,9 +44,10 @@ To Do
 * I need prior distributions to be tuples, as per invariance principle 
 * Make the _check function more arbitrary, not just for checking types, but checking the truth value for other useful features 
 
-
 * meta _make_invariant should be written to check against bad prior types 
 * Let's not reinvent the wheel; for more complicated Bayesian networks, should look at PyMC and implementations such as bnlearn 
+
+* Make presets for distributions, a la HAllA 
 
 """
 
@@ -93,6 +92,43 @@ class Strudel:
 			def rvs( self, shape ):
 				return self.object( shape )
 
+		self.__doc__ 			= __doc__
+
+		self.__description__ 	= """
+		   _____ _   _____       _____  ______ _ 
+		  / ____| | |  __ \     |  __ \|  ____| |
+		 | (___ | |_| |__) |   _| |  | | |__  | |
+		  \___ \| __|  _  / | | | |  | |  __| | |
+		  ____) | |_| | \ \ |_| | |__| | |____| |
+		 |_____/ \__|_|  \_\__,_|_____/|______|_|
+
+		                                         
+		Strudel Object for simple synthetic data generation and validation for bioinformatics data.
+
+		Main Functions:
+
+		One-shot functions 
+		* randvec : generate iid random samples from specified base distribution 
+		* randmat : generate random matrix from specified base distribution 
+		* randmix : generate random mixture 
+		* randnet : generate random network 
+
+		Pipelines 
+		* generate_synthetic data : returns synthetic data with discretized counterpart 
+
+		Presets -- the following presets are available for ease of user use 
+		* default 
+		* normal
+		* uniform 
+		"""
+		
+		self.__version__ 		= "0.0.1"
+		self.__author__			= ["YS Joseph Moon", "Curtis Huttenhower"]
+		self.__contact__		= "moon.yosup@gmail.com"
+
+		self.keys_attribute 	= ["__description__", "__author__", "__contact__" , "__version__", "base", "base_param", "shape", "num_var", 
+			"noise_param", "prior", "prior_param", "prior_shape"]
+
 		self.hash_distributions	= { "uniform"	: uniform, #This distribution is constant between loc and loc + scale.
 									"normal"	: norm, 
 									"linear"	: linear,
@@ -103,6 +139,13 @@ class Strudel:
 									"dirichlet" : dirichlet, 
 									"pareto"	: pareto, 
 									}
+
+		self.hash_spike_function = {"linear"	: None,
+									"sine"		: None, 
+									"parabola"	: None,
+									"cubic"		: None, 
+									"log"		: None, 
+									} 
 
 		self.hash_conjugate		= { "normal" 	: ("normal", "invgamma"), 
 									"uniform"	: "pareto", 
@@ -151,7 +194,7 @@ class Strudel:
 
 		## Noise 
 
-		self.noise_param		= 0 # a value between [0,1]; controls amount of noise added to the test distribution 
+		self.noise_param		= 0.01 # a value between [0,1]; controls amount of noise added to the test distribution 
 
 		self.noise_distribution = lambda variance: norm(0,variance)
 
@@ -162,7 +205,30 @@ class Strudel:
 		## dynamically add distributions to class namespace
 
 		for k,v in self.hash_distributions.items():
-			setattr( self, k, v) 
+			setattr( self, k, v)  
+
+		assert( 0.0 <= self.noise_param <= 1.0 ), \
+			"Noise parameter must be a float between 0 and 1"
+
+	#========================================#
+	# Presets 
+	#========================================#
+
+	def __preset_default( ):
+		pass 
+
+	def __preset_uniform( ):
+		pass 
+
+	def __preset_normal( ): 
+		pass 
+
+	def __preset_mixture_gaussian( ):
+		pass
+
+	def __preset_mixture_uniform( ):
+		pass 
+
 	#========================================#
 	# Private helper functions 
 	#========================================#
@@ -373,6 +439,15 @@ class Strudel:
 	# Public functions 
 	#========================================#
 
+	def get_attribute( self ):
+		"""
+		Display function for the user to see current settings 
+		"""
+
+		for item in self.keys_attribute:
+			sys.stderr.write( "\t".join( [item,str(getattr( self, item ))] ) + "\n" ) 
+
+
 	def set_base( self, aDist ):
 		self.base = aDist 
 		self.base_distribution = self._eval( self.hash_distributions, self.base )
@@ -410,9 +485,38 @@ class Strudel:
 	def set_prior_shape( self, prior_shape ):
 		self.prior_shape = prior_shape 
 
+	def set_preset( self, strMethod ):
+		strPrefix = "__preset_"
+		pMethod = getattr( self, strPrefix + strMethod )
+		return pMethod( )
+
 	#========================================#
 	# Base generation 
 	#========================================#
+
+	def randvec( self, shape = None, dist = None ):
+		"""
+		Draw `shape` number of iid random samples from a base distribution 
+		"""
+
+		if not shape:
+			shape = self.shape
+
+		assert( isinstance( shape, int ) ), "Shape must be an int." 
+
+		if not dist:
+			dist = self.base_distribution
+		else:
+			try:
+				dist()
+			except TypeError:
+				try:
+					dist = self.hash_distributions[dist]
+				except KeyError:
+					raise Exception("Please provide a valid distribution")
+
+		return array([dist.rvs( ) for _ in range(shape)])
+
 
 	def randmat( self, shape = (10,10), dist = None ):
 		"""
@@ -574,6 +678,41 @@ class Strudel:
 		"""
 		pass 
 
+	#=============================================================#
+	# Spike functions 
+	#=============================================================#
+
+	def spike( self, X, strMethod = "linear" ):
+		strPrefix = "__spike_"
+		pMethod = getattr(self, strPrefix + strMethod)
+
+		return pMethod(X)
+
+	def __spike_linear( X ):
+		return X + self.noise_distribution( self.noise_param ).rvs( shape )
+
+	def __spike_sine( ):
+		return numpy.sin( X*numpy.pi ) + self.noise_distribution( self.noise_param ).rvs( shape )
+
+	def __spike_half_circle( ):
+		pass
+
+	def __spike_parabola( ):
+		pass
+
+	def __spike_cubic( ):
+		pass
+
+	def __spike_log( ):
+		pass 
+
+	def __spike_vee( ):
+		pass 
+
+#identity, half_circle, sine, parabola, cubic, log, vee 
+
+
+
 	#==============================================================================#
 	# Parametricized shapes under uniform base distribution 
 	## Good reference is http://cran.r-project.org/web/packages/mlbench/index.html 
@@ -581,6 +720,7 @@ class Strudel:
 	#==============================================================================#
 
 	### all of these rvs's should be numpy arrays 
+	### self-contained devices 
 
 	def identity( self, shape = 100, rvs = array([]) ):
 		H = self.base_distribution( *self.base_param )
@@ -791,7 +931,7 @@ class Strudel:
 						"adj_mid": True, "norm_mi": True, "norm_mid": True }
 
 		hashMethods = {"pearson": halla.distance.cor, "norm_mi": halla.distance.norm_mi,
-						"mi": halla.distance.mi}
+						"mi": halla.distance.mi, "norm_mid" : halla.distance.norm_mid}
 
 		pFunDiscretize = halla.stats.discretize 
 
