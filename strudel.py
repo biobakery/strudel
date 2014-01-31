@@ -139,13 +139,15 @@ class Strudel:
 									"dirichlet" : dirichlet, 
 									"pareto"	: pareto, 
 									}
+		
+		self.hash_spike_method = {"linear"			: self.__spike_linear,
+									"sine"			: self.__spike_sine,
+									"half_circle" 	: self.__spike_half_circle,
+									"parabola"		: self.__spike_parabola,
+									"cubic"			: self.__spike_cubic,
+									"log"			: self.__spike_log,
+									"vee"			: self.__spike_vee,	}
 
-		self.hash_spike_function = {"linear"	: None,
-									"sine"		: None, 
-									"parabola"	: None,
-									"cubic"		: None, 
-									"log"		: None, 
-									} 
 
 		self.hash_conjugate		= { "normal" 	: ("normal", "invgamma"), 
 									"uniform"	: "pareto", 
@@ -682,36 +684,58 @@ class Strudel:
 	# Spike functions 
 	#=============================================================#
 
-	def spike( self, X, strMethod = "linear" ):
-		strPrefix = "__spike_"
-		pMethod = getattr(self, strPrefix + strMethod)
+	def spike( self, X, strMethod = "linear", aArgs = [] ):
+		"""
+		Introduce spikes between variables. 
 
-		return pMethod(X)
+		Parameters
+		------------
 
-	def __spike_linear( X ):
+			X: numpy.ndarray 
+
+			strMethod: str 
+			{"linear", "sine", "half_circle", "parabola", "cubic", "log", "vee"}
+
+		Returns 
+		----------
+
+			Y: numpy.ndarray 
+			Transformed Matrix 
+
+		"""
+		pMethod = self.hash_spike_method[strMethod]
+		if aArgs:
+			return pMethod(X, *aArgs)
+		else:
+			return pMethod(X) 
+
+	def __spike_linear( self, X ):
+		shape = X.shape  
 		return X + self.noise_distribution( self.noise_param ).rvs( shape )
 
-	def __spike_sine( ):
+	def __spike_sine( self, X ):
+		shape = X.shape 
 		return numpy.sin( X*numpy.pi ) + self.noise_distribution( self.noise_param ).rvs( shape )
 
-	def __spike_half_circle( ):
-		pass
+	def __spike_half_circle( self, X ):
+		shape = X.shape  
+		return numpy.sqrt( 1-X**2 ) + self.noise_distribution( self.noise_param ).rvs( shape )
 
-	def __spike_parabola( ):
-		pass
+	def __spike_parabola( self, X ):
+		shape = X.shape
+		return X**2 + self.noise_distribution( self.noise_param ).rvs( shape )
 
-	def __spike_cubic( ):
-		pass
+	def __spike_cubic( self, X ):
+		shape = X.shape
+		return X**3 + self.noise_distribution( self.noise_param ).rvs( shape )
 
-	def __spike_log( ):
-		pass 
+	def __spike_log( self, X ):
+		shape = X.shape
+		return numpy.log( 1 + X + self.small ) + self.noise_distribution( self.noise_param ).rvs( shape )
 
-	def __spike_vee( ):
-		pass 
-
-#identity, half_circle, sine, parabola, cubic, log, vee 
-
-
+	def __spike_vee( self, X ):
+		shape = X.shape
+		return numpy.sqrt( X**2 ) + self.noise_distribution( self.noise_param ).rvs( shape )
 
 	#==============================================================================#
 	# Parametricized shapes under uniform base distribution 

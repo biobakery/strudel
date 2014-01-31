@@ -1,0 +1,19 @@
+Strudel: Plan 01-30-2014
+===========================
+
+* To Do 
+	+ Make strudel orthogonal from HAllA; there is no reason for strudel to be dependent on HAllA,
+	since strudel should be standalone.
+	+ Design direction: should include rudimentary "summary mode" in strudel, so that a user can view the nature of data against common baseline functions before trying it out in their own pipeline 
+	+ Parametric 
+		-Pearson/Spearman cor 
+		-ANOVA
+		-X2/Fishers
+	+ Nonparametric 
+		-Pearon/Spearman
+		-KW
+		X2/Fishers  
+
+* Completed 
+	+ Documentation and description added
+	+ "Spiking in" done 
