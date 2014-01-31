@@ -194,15 +194,17 @@ class Strudel:
 
 		self.linkage 			= [] 
 
-		## Noise 
+		### Noise 
 
 		self.noise_param		= 0.01 # a value between [0,1]; controls amount of noise added to the test distribution 
 
-		self.noise_distribution = lambda variance: norm(0,variance)
+		self.noise_distribution = lambda variance: norm(0,variance) 
 
 		### Auxillary 
 
 		self.small 				= 0.001
+
+		self.num_iteration 		= 100
 
 		## dynamically add distributions to class namespace
 
@@ -476,6 +478,11 @@ class Strudel:
 	def set_shape( self, shape_param ):
 		self.shape = shape_param 
 
+	def set_num_iteration( self, iIter ):
+		assert( type(iIter) == int ), "Number of iterations must be an integer."
+		self.num_iteration = iIter 
+		return self.num_iteration 
+
 	def set_base_param( self, param ):
 		param = self._make_invariant( param, self._len( self.base ) ) 
 		self.base_param = param 
@@ -679,6 +686,109 @@ class Strudel:
 
 		"""
 		pass 
+
+	#========================================#
+	# Summary methods
+	#========================================#
+
+	def association( self, X, Y, strMethod = "pearson", bPval = False, bParam = True, 
+		iIter = None, strNPMethod = "permutation" ):
+		"""
+		Test the association between arrays X and Y. 
+		X and Y can be 1-dimensional arrays or multi-dimensional arrays;
+		in the multidimensional case, appropriate multivariate generalizations 
+		are to be used in place of traditional methods.
+
+		If a non-parametric test is used, `self.num_iteration` is used for the iteration parameter
+		if not specified otherwise. 
+
+		Parameters
+		-------------
+
+			X: numpy.ndarray
+
+			Y: numpy.ndarray
+
+			strMethod: str 
+
+			bPval: bool 
+				True if p-value is requested 
+
+			bParam: bool
+				True if parametric p-value generation requested; otherwise, 
+				nonparametric permutation test used instead 
+
+
+		Returns 
+		--------------
+
+			d: float
+				association value 
+
+			p: float
+				optional p-value 
+
+		"""
+
+		hash_method = {"pearson": None,
+						"spearman": None, 
+						"kw": None, 
+						"anova": None, 
+						"x2": None,
+						"fisher": None, 
+						}
+
+		##Does parametric test exist? 
+		hash_parametric = {"pearson": True,
+							"spearman": True,
+							"anova": True,
+							} 
+
+		pMethod = hash_method[strMethod]
+
+
+		if not iIter:
+			iIter = self.num_iteration 
+
+		def _np_error_bars( X, Y, pAssociation, iIter, strMethod = "permutation" ):
+			"""
+			Helper function to generate error bars in a non-parametric way 
+
+			strMethod: str
+				{"bootstrap", "permutation"}
+			"""
+
+			def _bootstrap( ):
+				pass
+
+			def _permutation( ):
+				pass 
+
+			hashMethod = {"bootstrap": _bootstrap,
+							"permutation": _permutation }
+
+
+			pMethod = None 
+
+			try: 
+				pMethod = hashMethod[strMethod]
+			except KeyError:
+				pMethod = _permutation 
+
+
+			return pMethod( X, Y, pAssociation, iIter = iIter )
+
+		if bParam:
+			assert( hash_paramtric[strMethod] ), "Parametric error bar generation does not exist for the %s method" %strMethod
+			aOut = pMethod(X,Y)
+			return aOut[0] if not bPval else aOut 
+
+		else:
+			if bPval:
+				return _np_error_bars( X, Y, pAssociation = pMethod, iIter = iIter, strMethod = strNPMethod )
+			else:
+				return pMethod(X,Y)				
+
 
 	#=============================================================#
 	# Spike functions 
