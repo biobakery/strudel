@@ -758,15 +758,40 @@ class Strudel:
 				{"bootstrap", "permutation"}
 			"""
 
-			def _bootstrap( ):
-				pass
+			def _bootstrap( X, Y, pAssociation, iIter ):
+				def __sample( X, Y, pAssociation, iIter ):
+					"""
+					Perhaps the number of iterations should vary with number of samples 
+					"""
+					iRow, iCol = X.shape 
+					aDraw = array([np.random.randint( iRow ) for _ in range(iIter)])
+					aBootX, aBootY = X[aDraw], Y[aDraw]
+					return pAssociation( aBootX, aBootY )
+				
+				aDist = [__sample( X, Y, pAssociation, iIter ) for _ in range(iIter)]
+				
+				fAssociation = pAssociation( X, Y ) 
+				
+				fP = sp.stats.percentileofscore( fAssociation, aDist )
+				
+				return fAssociation, fP  
 
-			def _permutation( ):
-				pass 
+			def _permutation( X, Y, pAssociation, iIter ):
+				def __permute( X, Y, pAssociation ):
+					"""
+					Give value of pAssociation on one instance of permutation 
+					"""
+					aPermX = np.random.permutation( X )##without loss of generality, permute X and not Y
+					return pAssociation( aPermX, Y )
+					
+				fAssociation = pAssociation( X,Y ) 
+				aDist = [__permute(X,Y) for _ in range(iIter)] ##array containing finite estimation of sampling distribution 
+				
+				fP = sp.stats.percentileofscore( aPermX, aDist ) ##not sure about syntax; check later
+				return fAssociation, fP 
 
 			hashMethod = {"bootstrap": _bootstrap,
 							"permutation": _permutation }
-
 
 			pMethod = None 
 
@@ -774,7 +799,6 @@ class Strudel:
 				pMethod = hashMethod[strMethod]
 			except KeyError:
 				pMethod = _permutation 
-
 
 			return pMethod( X, Y, pAssociation, iIter = iIter )
 
