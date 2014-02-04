@@ -206,6 +206,10 @@ class Strudel:
 
 		self.num_iteration 		= 100
 
+		### Set Data 
+
+		self.meta_array 		= None 
+
 		## dynamically add distributions to class namespace
 
 		for k,v in self.hash_distributions.items():
@@ -236,6 +240,13 @@ class Strudel:
 	#========================================#
 	# Private helper functions 
 	#========================================#
+
+	def __load_datum( self ):
+		pass 
+	
+
+	def __load_data( self ):
+		pass 
 
 	def __eval( self, base, param, pEval = None ):
 		"""
@@ -691,7 +702,7 @@ class Strudel:
 	# Summary methods
 	#========================================#
 
-	def association( self, X, Y, strMethod = "pearson", bPval = False, bParam = True, 
+	def association( self, X, Y, strMethod = "pearson", bPval = False, bParam = False, 
 		iIter = None, strNPMethod = "permutation" ):
 		"""
 		Test the association between arrays X and Y. 
@@ -730,12 +741,15 @@ class Strudel:
 
 		"""
 
-		hash_method = {"pearson": None,
-						"spearman": None, 
-						"kw": None, 
-						"anova": None, 
-						"x2": None,
-						"fisher": None, 
+		## Common statistical functions: 
+		## http://docs.scipy.org/doc/scipy/reference/stats.html
+
+		hash_method = {"pearson": scipy.stats.pearsonr,
+						"spearman": scipy.stats.spearmanr, 
+						"kw": scipy.stats.mstats.kruskalwallis, 
+						"anova": scipy.stats.f_oneway, 
+						"x2": scipy.stats.chisquare,
+						"fisher": scipy.stats.fisher_exact, 
 						}
 
 		##Does parametric test exist? 
@@ -803,7 +817,7 @@ class Strudel:
 			return pMethod( X, Y, pAssociation, iIter = iIter )
 
 		if bParam:
-			assert( hash_paramtric[strMethod] ), "Parametric error bar generation does not exist for the %s method" %strMethod
+			assert( hash_parametric[strMethod] ), "Parametric error bar generation does not exist for the %s method" %strMethod
 			aOut = pMethod(X,Y)
 			return aOut[0] if not bPval else aOut 
 
