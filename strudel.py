@@ -14,6 +14,8 @@ URL
 Notes 
 -----------
 
+* General programming style: do NOT pluralize anything at all; only if absolutely necessary or is already used idiomatically in the scientific vernacular 
+
 * Invariance principle: generally, everything should be a list or array when passed into distribution generation functions, if they are not, 
 match up so length is preserved 
 
@@ -459,6 +461,10 @@ class Strudel:
 	# Public functions 
 	#========================================#
 
+	#----------------------------------------#
+	# "Get" Methods 
+	#----------------------------------------#
+
 	def get_attribute( self ):
 		"""
 		Display function for the user to see current settings 
@@ -466,6 +472,16 @@ class Strudel:
 
 		for item in self.keys_attribute:
 			sys.stderr.write( "\t".join( [item,str(getattr( self, item ))] ) + "\n" ) 
+
+	def get_data( self ):
+		return self.meta_array
+
+	def get_feature( self ):
+		pass 
+
+	#----------------------------------------#
+	# "Set" Methods 
+	#----------------------------------------#
 
 	def set_base( self, aDist ):
 		self.base = aDist 
@@ -525,12 +541,22 @@ class Strudel:
 	# Summary Methods -- exploration 
 	#========================================#
 
-	def explore( self ):
+	## As adherence to design philosophy, append what the function _is_ (e.g. "summary_") even if this lengthens the function call 
+	## First write summary methods for 1-d arrays, then for general arrays, and then for pairs, and then for arbitrary number of pairs 
+
+	def summary_explore( self ):
 		"""
 		Explore the given dataset, giving summary statistics and association parameters. 
-		Can give optional modules, such as HAllA. 
+		Can utilize optional modules, such as HAllA. 
 		"""
 		hashMethods = {}
+
+	def summary_association( self, X, Y ):
+		"""
+		A summary slew of association values in dataset 
+		"""
+		hashMethods = {} 
+		pass 
 
 	def association( self, X, Y, strMethod = "pearson", bPval = False, bParam = False, 
 		iIter = None, strNPMethod = "permutation" ):
@@ -602,21 +628,32 @@ class Strudel:
 				{"bootstrap", "permutation"}
 			"""
 
+			def __invariance( aOut ):
+				"""
+				Enforce invariance: when nonparametric pvalue generation is asked, 
+				parametric pval should not be outputted.  
+				"""
+				try:
+					aOut[1]
+					return aOut[0] 
+				except TypeError, IndexError:
+					return aOut 
+
 			def _bootstrap( X, Y, pAssociation, iIter ):
 				def __sample( X, Y, pAssociation, iIter ):
 					"""
 					Perhaps the number of iterations should vary with number of samples 
 					"""
 					iRow, iCol = X.shape 
-					aDraw = array([np.random.randint( iRow ) for _ in range(iIter)])
+					aDraw = array([numpy.random.randint( iRow ) for _ in range(iIter)])
 					aBootX, aBootY = X[aDraw], Y[aDraw]
-					return pAssociation( aBootX, aBootY )
+					return __invariance( pAssociation( aBootX, aBootY ) )
 				
 				aDist = [__sample( X, Y, pAssociation, iIter ) for _ in range(iIter)]
 				
-				fAssociation = pAssociation( X, Y ) 
+				fAssociation = __invariance( pAssociation( X, Y ) )
 				
-				fP = sp.stats.percentileofscore( fAssociation, aDist )
+				fP = scipy.stats.percentileofscore( aDist, fAssociation ) 
 				
 				return fAssociation, fP  
 
@@ -625,13 +662,13 @@ class Strudel:
 					"""
 					Give value of pAssociation on one instance of permutation 
 					"""
-					aPermX = np.random.permutation( X )##without loss of generality, permute X and not Y
-					return pAssociation( aPermX, Y )
+					aPermX = numpy.random.permutation( X )##without loss of generality, permute X and not Y
+					return __invariance( pAssociation( aPermX, Y ) )
 					
-				fAssociation = pAssociation( X,Y ) 
-				aDist = [__permute(X,Y) for _ in range(iIter)] ##array containing finite estimation of sampling distribution 
+				fAssociation = __invariance( pAssociation( X,Y ) )
+				aDist = [__permute(X,Y, pAssociation=pAssociation) for _ in range(iIter)] ##array containing finite estimation of sampling distribution 
 				
-				fP = sp.stats.percentileofscore( aPermX, aDist ) ##not sure about syntax; check later
+				fP = scipy.stats.percentileofscore( aDist, fAssociation ) ##not sure about syntax; check later
 				return fAssociation, fP 
 
 			hashMethod = {"bootstrap": _bootstrap,
@@ -649,15 +686,17 @@ class Strudel:
 		if bParam:
 			assert( hash_parametric[strMethod] ), "Parametric error bar generation does not exist for the %s method" %strMethod
 			aOut = pMethod(X,Y)
-			return aOut[0] if not bPval else aOut 
+			
+			return (aOut[0] if not bool(bPval) else aOut)
 
 		else:
 			if bPval:
 				return _np_error_bars( X, Y, pAssociation = pMethod, iIter = iIter, strMethod = strNPMethod )
 			else:
-				return pMethod(X,Y)				
-
-
+				aOut = pMethod(X,Y)				
+				## BUGBUG: define general association/distance objects so that this can be avoided
+				## Currently, there is a need to wrap around different association definition 
+				return __invariance( aOut )
 	#========================================#
 	# Base generation 
 	#========================================#

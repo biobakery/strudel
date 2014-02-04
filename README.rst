@@ -19,6 +19,7 @@ Authors
 ..	Important notions 
 	* conditional (in)dependence 
 	* IID 
+	* Literate programming (Knuth)-- make functions and documentation as readable to humans as possible 
 
 Getting Started
 ============================================ 
