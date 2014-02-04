@@ -1,0 +1,42 @@
+Strudel: Plan 02-04-2014
+=========================================
+
+Notes -- Joseph
+-------------------------------------------
+
+* Core design principle: implementation should be separate from description of algorithm
+** Implementations of specific algorithms should be as _specific_ to the task as possible, 
+and tools should be as wide-encompassing as possible.
+** GNU design principle: make programs VERY specific to their task 
+** There is a need to simplify tasks until it cannot be simplified any further 
+** New Jersey Design (as opposed to MIT framework)
+
+* Strudel -> StrudelPy? 
+** Introduce package to the python community/python vernacular  
+* Fill up documentation with short summary section -- to be also used with the ARO progress documentation 
+* tutorials should be encaseds in ipython notebooks for interactivity. 
+* Simple fitting to the data should be implemetned, such that strudel can adaptively learn parameters from 
+
+* StrudelPy 
+** HAllA 
+** CAKE (consensus based bayesian cake-cutting algorithm, relaxed clustering for **feature selection**)
+
+Notes -- Curtis 
+-------------------------------------------
+
+0. Hi Joseph, all - I was just getting ready to send the ARO progress report in, and I noticed we didn't have any figures for HAllA in there.  Joseph, we've discussed developing something like Figures 1 and 2 of the MINE paper before for inclusion the HAllA writeup:
+
+http://www.ncbi.nlm.nih.gov/pubmed/22174245
+
+Does anything like these exist already, and if not how feasible is it to create a simplified version on short order for the progress report (and presumably the manuscript itself later on)?  I'd particularly like to be able to show the results of your evaluation in a graphical format, like a smaller/simpler version of their Figure 2.
+
+1. Sorry for the second request, but it would also be great if I could get ~1-2 paragraphs of description on Strudel as well to include here.  We have a lot about sparseDOSSA already, and it would make a lot of sense to include the two of them together.  No figures needed, just a description and any details that exist so far.
+
+And it's fine if the whole thing's still in progress - this is a progress report, so that's a good thing.  But it is due today, so let me know ASAP if this is feasible or not.
+
+2. Anything simple is fine for the progress report itself, and it's of course even better if it can be extended to a fancier version for the paper that would be great.  It's also fine to rig the game by using data that's especially appropriate for HAllA and not for correlation, e.g. periodic or exclusionary data.
+
+How about a two-parter, panel A a pair of ROC plots like you described and panel B an example two-way relationship that's significant by HAllA but not correlation?  Those should both be fairly easy given what you already have, and they build nicely into the paper (and are a straight-up subset of MINE Figure 2).
+
+If you can prioritize that, I still have time to include it by the end of today.  If there's _also_ time for a schematic figure (our usual "Figure 1", again like MINE's Figure 1), that's great too - but the performance evaluation is more important if it's feasible.
+

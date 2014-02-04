@@ -51,8 +51,13 @@ To Do
 
 """
 
-####### halla and strudel exists together 
-import halla 
+## Exception handling for optional packages 
+
+try:
+	import halla 
+	bHAllA = True 
+except ImportError:
+	bHAllA = False 
 
 import scipy
 import numpy 
@@ -462,7 +467,6 @@ class Strudel:
 		for item in self.keys_attribute:
 			sys.stderr.write( "\t".join( [item,str(getattr( self, item ))] ) + "\n" ) 
 
-
 	def set_base( self, aDist ):
 		self.base = aDist 
 		self.base_distribution = self._eval( self.hash_distributions, self.base )
@@ -509,6 +513,150 @@ class Strudel:
 		strPrefix = "__preset_"
 		pMethod = getattr( self, strPrefix + strMethod )
 		return pMethod( )
+
+	#========================================#
+	# Inference Methods 
+	#========================================#
+
+	def fit_to_data( self, strMethod ):
+		pass 
+
+	#========================================#
+	# Summary Methods -- exploration 
+	#========================================#
+
+	def explore( self ):
+		"""
+		Explore the given dataset, giving summary statistics and association parameters. 
+		Can give optional modules, such as HAllA. 
+		"""
+		hashMethods = {}
+
+	def association( self, X, Y, strMethod = "pearson", bPval = False, bParam = False, 
+		iIter = None, strNPMethod = "permutation" ):
+		"""
+		Test the association between arrays X and Y. 
+		X and Y can be 1-dimensional arrays or multi-dimensional arrays;
+		in the multidimensional case, appropriate multivariate generalizations 
+		are to be used in place of traditional methods.
+
+		If a non-parametric test is used, `self.num_iteration` is used for the iteration parameter
+		if not specified otherwise. 
+
+		Parameters
+		-------------
+
+			X: numpy.ndarray
+
+			Y: numpy.ndarray
+
+			strMethod: str 
+
+			bPval: bool 
+				True if p-value is requested 
+
+			bParam: bool
+				True if parametric p-value generation requested; otherwise, 
+				nonparametric permutation test used instead 
+
+
+		Returns 
+		--------------
+
+			d: float
+				association value 
+
+			p: float
+				optional p-value 
+
+		"""
+
+		## Common statistical functions: 
+		## http://docs.scipy.org/doc/scipy/reference/stats.html
+
+		hash_method = {"pearson": scipy.stats.pearsonr,
+						"spearman": scipy.stats.spearmanr, 
+						"kw": scipy.stats.mstats.kruskalwallis, 
+						"anova": scipy.stats.f_oneway, 
+						"x2": scipy.stats.chisquare,
+						"fisher": scipy.stats.fisher_exact, 
+						}
+
+		##Does parametric test exist? 
+		hash_parametric = {"pearson": True,
+							"spearman": True,
+							"anova": True,
+							} 
+
+		pMethod = hash_method[strMethod]
+
+
+		if not iIter:
+			iIter = self.num_iteration 
+
+		def _np_error_bars( X, Y, pAssociation, iIter, strMethod = "permutation" ):
+			"""
+			Helper function to generate error bars in a non-parametric way 
+
+			strMethod: str
+				{"bootstrap", "permutation"}
+			"""
+
+			def _bootstrap( X, Y, pAssociation, iIter ):
+				def __sample( X, Y, pAssociation, iIter ):
+					"""
+					Perhaps the number of iterations should vary with number of samples 
+					"""
+					iRow, iCol = X.shape 
+					aDraw = array([np.random.randint( iRow ) for _ in range(iIter)])
+					aBootX, aBootY = X[aDraw], Y[aDraw]
+					return pAssociation( aBootX, aBootY )
+				
+				aDist = [__sample( X, Y, pAssociation, iIter ) for _ in range(iIter)]
+				
+				fAssociation = pAssociation( X, Y ) 
+				
+				fP = sp.stats.percentileofscore( fAssociation, aDist )
+				
+				return fAssociation, fP  
+
+			def _permutation( X, Y, pAssociation, iIter ):
+				def __permute( X, Y, pAssociation ):
+					"""
+					Give value of pAssociation on one instance of permutation 
+					"""
+					aPermX = np.random.permutation( X )##without loss of generality, permute X and not Y
+					return pAssociation( aPermX, Y )
+					
+				fAssociation = pAssociation( X,Y ) 
+				aDist = [__permute(X,Y) for _ in range(iIter)] ##array containing finite estimation of sampling distribution 
+				
+				fP = sp.stats.percentileofscore( aPermX, aDist ) ##not sure about syntax; check later
+				return fAssociation, fP 
+
+			hashMethod = {"bootstrap": _bootstrap,
+							"permutation": _permutation }
+
+			pMethod = None 
+
+			try: 
+				pMethod = hashMethod[strMethod]
+			except KeyError:
+				pMethod = _permutation 
+
+			return pMethod( X, Y, pAssociation, iIter = iIter )
+
+		if bParam:
+			assert( hash_parametric[strMethod] ), "Parametric error bar generation does not exist for the %s method" %strMethod
+			aOut = pMethod(X,Y)
+			return aOut[0] if not bPval else aOut 
+
+		else:
+			if bPval:
+				return _np_error_bars( X, Y, pAssociation = pMethod, iIter = iIter, strMethod = strNPMethod )
+			else:
+				return pMethod(X,Y)				
+
 
 	#========================================#
 	# Base generation 
@@ -697,135 +845,6 @@ class Strudel:
 
 		"""
 		pass 
-
-	#========================================#
-	# Summary methods
-	#========================================#
-
-	def association( self, X, Y, strMethod = "pearson", bPval = False, bParam = False, 
-		iIter = None, strNPMethod = "permutation" ):
-		"""
-		Test the association between arrays X and Y. 
-		X and Y can be 1-dimensional arrays or multi-dimensional arrays;
-		in the multidimensional case, appropriate multivariate generalizations 
-		are to be used in place of traditional methods.
-
-		If a non-parametric test is used, `self.num_iteration` is used for the iteration parameter
-		if not specified otherwise. 
-
-		Parameters
-		-------------
-
-			X: numpy.ndarray
-
-			Y: numpy.ndarray
-
-			strMethod: str 
-
-			bPval: bool 
-				True if p-value is requested 
-
-			bParam: bool
-				True if parametric p-value generation requested; otherwise, 
-				nonparametric permutation test used instead 
-
-
-		Returns 
-		--------------
-
-			d: float
-				association value 
-
-			p: float
-				optional p-value 
-
-		"""
-
-		## Common statistical functions: 
-		## http://docs.scipy.org/doc/scipy/reference/stats.html
-
-		hash_method = {"pearson": scipy.stats.pearsonr,
-						"spearman": scipy.stats.spearmanr, 
-						"kw": scipy.stats.mstats.kruskalwallis, 
-						"anova": scipy.stats.f_oneway, 
-						"x2": scipy.stats.chisquare,
-						"fisher": scipy.stats.fisher_exact, 
-						}
-
-		##Does parametric test exist? 
-		hash_parametric = {"pearson": True,
-							"spearman": True,
-							"anova": True,
-							} 
-
-		pMethod = hash_method[strMethod]
-
-
-		if not iIter:
-			iIter = self.num_iteration 
-
-		def _np_error_bars( X, Y, pAssociation, iIter, strMethod = "permutation" ):
-			"""
-			Helper function to generate error bars in a non-parametric way 
-
-			strMethod: str
-				{"bootstrap", "permutation"}
-			"""
-
-			def _bootstrap( X, Y, pAssociation, iIter ):
-				def __sample( X, Y, pAssociation, iIter ):
-					"""
-					Perhaps the number of iterations should vary with number of samples 
-					"""
-					iRow, iCol = X.shape 
-					aDraw = array([np.random.randint( iRow ) for _ in range(iIter)])
-					aBootX, aBootY = X[aDraw], Y[aDraw]
-					return pAssociation( aBootX, aBootY )
-				
-				aDist = [__sample( X, Y, pAssociation, iIter ) for _ in range(iIter)]
-				
-				fAssociation = pAssociation( X, Y ) 
-				
-				fP = sp.stats.percentileofscore( fAssociation, aDist )
-				
-				return fAssociation, fP  
-
-			def _permutation( X, Y, pAssociation, iIter ):
-				def __permute( X, Y, pAssociation ):
-					"""
-					Give value of pAssociation on one instance of permutation 
-					"""
-					aPermX = np.random.permutation( X )##without loss of generality, permute X and not Y
-					return pAssociation( aPermX, Y )
-					
-				fAssociation = pAssociation( X,Y ) 
-				aDist = [__permute(X,Y) for _ in range(iIter)] ##array containing finite estimation of sampling distribution 
-				
-				fP = sp.stats.percentileofscore( aPermX, aDist ) ##not sure about syntax; check later
-				return fAssociation, fP 
-
-			hashMethod = {"bootstrap": _bootstrap,
-							"permutation": _permutation }
-
-			pMethod = None 
-
-			try: 
-				pMethod = hashMethod[strMethod]
-			except KeyError:
-				pMethod = _permutation 
-
-			return pMethod( X, Y, pAssociation, iIter = iIter )
-
-		if bParam:
-			assert( hash_parametric[strMethod] ), "Parametric error bar generation does not exist for the %s method" %strMethod
-			aOut = pMethod(X,Y)
-			return aOut[0] if not bPval else aOut 
-
-		else:
-			if bPval:
-				return _np_error_bars( X, Y, pAssociation = pMethod, iIter = iIter, strMethod = strNPMethod )
-			else:
-				return pMethod(X,Y)				
 
 
 	#=============================================================#
