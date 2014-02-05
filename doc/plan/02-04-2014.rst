@@ -1,6 +1,29 @@
 Strudel: Plan 02-04-2014
 =========================================
 
+Done 
+-------------------------------------------
+
+* association( ) fixed 
+
+To Do 
+-------------------------------------------
+* auc and roc_curve needs to be made general so that it can handle bags of associations 
+* Also, fix roc_curve behavior; allow for meta_roc_curve -- if more than one method passed in, let it graph arbitrary number of ROC curves with legends 
+** how to handle true positive/ false positive behavior? 
+** [[1,2,3],[4,5]] :: if any 
+* Big task: refactor code and transfer from halla -> strudel if needed 
+* Big task: finish implement test cases for George to initiate discussion. 
+* Read 2 Efron papers 
+* Glance over the Dantzig selector paper 
+* Next priority
+** PyMC
+** PyMix 
+** Wrapping to d3, etc 
+** name change? 
+** website set-up (strudelpy.org -- try hutlab4?)
+** HAllA, CAKE, SparseDOSSA integration 
+
 Notes -- Joseph
 -------------------------------------------
 

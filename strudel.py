@@ -64,6 +64,8 @@ except ImportError:
 import scipy
 import numpy 
 from numpy import array 
+import sklearn
+import pylab 
 import csv 
 import sys 
 import itertools 
@@ -71,6 +73,7 @@ import itertools
 ####### namespace for distributions 
 from scipy.stats import invgamma, norm, uniform, logistic, gamma, lognorm, beta, pareto, pearsonr  
 from numpy.random import normal, multinomial, dirichlet 
+from sklearn.metrics import roc_curve, auc 
 
 ####### namespace for plotting 
 from pylab import hist, plot, figure, scatter
@@ -129,7 +132,7 @@ class Strudel:
 		* uniform 
 		"""
 		
-		self.__version__ 		= "0.0.1"
+		self.__version__ 		= "0.0.2"
 		self.__author__			= ["YS Joseph Moon", "Curtis Huttenhower"]
 		self.__contact__		= "moon.yosup@gmail.com"
 
@@ -465,6 +468,9 @@ class Strudel:
 	# "Get" Methods 
 	#----------------------------------------#
 
+	def get_generation_methods( self ):
+		return self.generation_methods 
+
 	def get_attribute( self ):
 		"""
 		Display function for the user to see current settings 
@@ -559,7 +565,7 @@ class Strudel:
 		pass 
 
 	def association( self, X, Y, strMethod = "pearson", bPval = False, bParam = False, 
-		iIter = None, strNPMethod = "permutation" ):
+		bDiscretize = False, iIter = None, strNPMethod = "permutation" ):
 		"""
 		Test the association between arrays X and Y. 
 		X and Y can be 1-dimensional arrays or multi-dimensional arrays;
@@ -606,6 +612,9 @@ class Strudel:
 						"anova": scipy.stats.f_oneway, 
 						"x2": scipy.stats.chisquare,
 						"fisher": scipy.stats.fisher_exact, 
+						"norm_mi": halla.distance.norm_mi, 
+						"mi": halla.distance.mi,
+						"norm_mid": halla.distance.norm_mid 
 						}
 
 		##Does parametric test exist? 
@@ -614,11 +623,31 @@ class Strudel:
 							"anova": True,
 							} 
 
+
+		# Automatically determine if have to be discretized? 
+		#hashDiscretize = {"pearson": False, "spearman": False, 
+		#				"mi": True, "mid": True, "adj_mi":True, 
+		#				"adj_mid": True, "norm_mi": True, "norm_mid": True }
+
+
 		pMethod = hash_method[strMethod]
 
+		if bDiscretize:
+			X,Y = halla.discretize( X ), halla.discretize( Y )
 
 		if not iIter:
 			iIter = self.num_iteration 
+
+		def __invariance( aOut ):
+			"""
+			Enforce invariance: when nonparametric pvalue generation is asked, 
+			parametric pval should not be outputted.  
+			"""
+			try:
+				aOut[1]
+				return aOut[0] 
+			except Exception:
+				return aOut 
 
 		def _np_error_bars( X, Y, pAssociation, iIter, strMethod = "permutation" ):
 			"""
@@ -627,17 +656,6 @@ class Strudel:
 			strMethod: str
 				{"bootstrap", "permutation"}
 			"""
-
-			def __invariance( aOut ):
-				"""
-				Enforce invariance: when nonparametric pvalue generation is asked, 
-				parametric pval should not be outputted.  
-				"""
-				try:
-					aOut[1]
-					return aOut[0] 
-				except TypeError, IndexError:
-					return aOut 
 
 			def _bootstrap( X, Y, pAssociation, iIter ):
 				def __sample( X, Y, pAssociation, iIter ):
@@ -668,7 +686,7 @@ class Strudel:
 				fAssociation = __invariance( pAssociation( X,Y ) )
 				aDist = [__permute(X,Y, pAssociation=pAssociation) for _ in range(iIter)] ##array containing finite estimation of sampling distribution 
 				
-				fP = scipy.stats.percentileofscore( aDist, fAssociation ) ##not sure about syntax; check later
+				fP = 1.0 - scipy.stats.percentileofscore( aDist, fAssociation )/100.0 ##not sure about syntax; check later
 				return fAssociation, fP 
 
 			hashMethod = {"bootstrap": _bootstrap,
@@ -1152,6 +1170,9 @@ class Strudel:
 	# Data visualization helpers 
 	#=============================================================#
 
+	def compare( self, X, A, method = "pearson" ):
+		return self.view( X, A, method = method )
+
 	def view( self, X, A, method = "pearson" ):
 
 		pMethod = method 
@@ -1180,10 +1201,25 @@ class Strudel:
 
 		return array(aOut)
 
+
+	def plot_roc( self, fpr, tpr ):
+		roc_auc = auc(fpr, tpr) 
+		#pl.clf()
+		pl = pylab 
+		pl.plot(fpr, tpr, label='ROC curve (area = %0.2f)' % roc_auc)
+		pl.plot([0, 1], [0, 1], 'k--')
+		pl.xlim([0.0, 1.0])
+		pl.ylim([0.0, 1.0])
+		pl.xlabel('False Positive Rate')
+		pl.ylabel('True Positive Rate')
+		pl.title('Receiver operating characteristic')
+		pl.legend(loc="lower right")
+		pl.show()
+
 	def roc( self, true_labels, prob_vec ):
 		fpr, tpr, thresholds = halla.stats.roc_curve( true_labels, prob_vec )
-		roc_auc = halla.stats.auc( fpr, tpr )
-		halla.stats.plot_roc( fpr, tpr )
+		roc_auc = sklearn.metrics.auc( fpr, tpr )
+		self.plot_roc( fpr, tpr )
 		return roc_auc 
 
 	#=============================================================#
