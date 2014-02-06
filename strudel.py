@@ -254,7 +254,6 @@ class Strudel:
 	def __load_datum( self ):
 		pass 
 	
-
 	def __load_data( self ):
 		pass 
 
@@ -380,6 +379,10 @@ class Strudel:
 			iLen = 1 
 		return [pObj for _ in range(iLen)]
 
+	#----------------------------------------#
+	# Type-Checking Methods 
+	#----------------------------------------#
+
 	def _check( self, pObject, pType, pFun = isinstance, pClause = "or" ):
 		"""
 		Wrapper for type checking 
@@ -391,6 +394,12 @@ class Strudel:
 			aType = [pType]
 
 		return reduce( lambda x,y: x or y, [isinstance( pObject, t ) for t in aType], False )
+
+	def _cross_check( self, pX, pY, pFun = len ):
+		"""
+		Checks that pX and pY are consistent with each other, in terms of specified function pFun. 
+
+		"""
 
 	def _is_list( self, pObject ):
 		return self._check( pObject, list )
@@ -412,13 +421,20 @@ class Strudel:
 	def _is_str( self, pObject ):
 		return self._check( pObject, str )
 
+	#----------------------------------------#
+	# Invariance principle 
+	#----------------------------------------#
+
 	def _make_invariant( self, pObject, pMatch ):
 		"""
 		Invariance principle; match up pObject with an invariance imposed by pMatch 
 
 		Most used case is as a wrapper for the homogeneous case 
-		
-		[0] -> [0,0,0,...] etc 
+
+		Usually pObject is an int; use case is as follows:
+
+			[0] -> [0,0,0,...] 
+
 		"""
 
 		aObject = None 
@@ -454,11 +470,7 @@ class Strudel:
 			return self._make_invariant( pObject, apMatch[0] )
 		else:
 			return [self.__make_invariant( pObject, p ) for p in apMatch]
-		
-	def _categorical( self, aProb, aCategory = None ):
-		if not aCategory:
-			aCategory = range(len(aProb))
-		return next( itertools.compress( aCategory, multinomial( 1, aProb )  ) )
+
 		
 	#========================================#
 	# Public functions 
@@ -565,7 +577,7 @@ class Strudel:
 		pass 
 
 	def association( self, X, Y, strMethod = "pearson", bPval = False, bParam = False, 
-		bDiscretize = False, iIter = None, strNPMethod = "permutation" ):
+		bNormalize = False, iIter = None, strNPMethod = "permutation" ):
 		"""
 		Test the association between arrays X and Y. 
 		X and Y can be 1-dimensional arrays or multi-dimensional arrays;
@@ -602,6 +614,26 @@ class Strudel:
 				optional p-value 
 
 		"""
+		bDiscretize = bNormalize ##BUGBUG fix this later when there are more normalization methods other than discretization 
+
+
+		## just like in the "eval" functions, there are 4 cases
+		## 1. one-to-one 
+		## 2. one-to-many
+		## 3. many-to-one 
+		## 4. many-to-many 
+
+
+		#assert( self._is_array( X ) and self._is_array( X[0] ) ), "X is not a non 1-dimensional array" ##make sure X is a proper, non-degenerate array
+
+
+	def _association( self, X, Y, strMethod = "pearson", bPval = False, bParam = False, 
+		bNormalize = False, iIter = None, strNPMethod = "permutation" ):
+		"""
+		1-1 association testing
+		"""		
+
+		assert( not(self._is_iter(x[0])) and not(self._is_iter(y[0])) ), "X and Y must be 1-dimensional arrays or python iterable object"
 
 		## Common statistical functions: 
 		## http://docs.scipy.org/doc/scipy/reference/stats.html
@@ -629,6 +661,7 @@ class Strudel:
 		#				"mi": True, "mid": True, "adj_mi":True, 
 		#				"adj_mid": True, "norm_mi": True, "norm_mid": True }
 
+		bDiscretize = bNormalize ##BUGBUG fix this later when there are more normalization methods other than discretization 
 
 		pMethod = hash_method[strMethod]
 
@@ -715,6 +748,20 @@ class Strudel:
 				## BUGBUG: define general association/distance objects so that this can be avoided
 				## Currently, there is a need to wrap around different association definition 
 				return __invariance( aOut )
+	
+	#========================================#
+	# Distribution helpers 
+	#========================================#
+
+	def _categorical( self, aProb, aCategory = None ):
+		"""
+		Draw from categorical distribution as defined by the array of probabilities aProb. 
+		"""
+		if not aCategory:
+			aCategory = range(len(aProb))
+		return next( itertools.compress( aCategory, multinomial( 1, aProb )  ) )
+
+
 	#========================================#
 	# Base generation 
 	#========================================#
@@ -1203,9 +1250,26 @@ class Strudel:
 
 
 	def plot_roc( self, fpr, tpr ):
+		"""
+		Plots the roc curve for a given set of false/true positve rates  
+
+		Parameters
+		------------
+
+		fpr: array of float
+			False Positive Rate or 1-Specificity 
+		tpr: array of float
+			True Positive Rate or Sensitivity 
+
+		Returns 
+		----------
+
+		pPlot: numpy plot object 
+			Pointer to the plot object 
+		"""
 		roc_auc = auc(fpr, tpr) 
-		#pl.clf()
 		pl = pylab 
+		pl.clf() 
 		pl.plot(fpr, tpr, label='ROC curve (area = %0.2f)' % roc_auc)
 		pl.plot([0, 1], [0, 1], 'k--')
 		pl.xlim([0.0, 1.0])
@@ -1217,6 +1281,23 @@ class Strudel:
 		pl.show()
 
 	def roc( self, true_labels, prob_vec ):
+		"""
+		Takes true labels and the probability vectors and calculates the corresponding fpr/tpr; return roc object
+
+		Parameters
+		------------
+
+		true_labels: array of float
+			Binary labels
+		prob_vec: array of float
+			Probability of being a true label 
+
+		Returns 
+		----------
+
+		pPlot: numpy plot object 
+			Pointer to the plot object 
+		"""
 		fpr, tpr, thresholds = halla.stats.roc_curve( true_labels, prob_vec )
 		roc_auc = sklearn.metrics.auc( fpr, tpr )
 		self.plot_roc( fpr, tpr )
