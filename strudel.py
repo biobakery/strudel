@@ -401,6 +401,20 @@ class Strudel:
 
 		"""
 	
+	def _is_meta( self, pObject ):
+		"""	
+		Is pObject an iterable of iterable? 
+		"""
+
+		if self._is_empty( pObject ): 
+			raise Exception("Object empty; cannot determine type")
+
+		else:
+			### invariance; object not empty 
+			pass
+
+
+
 	def _is_empty( self, pObject ):
 		"""
 		Wrapper for both numpy arrays and regular lists 
