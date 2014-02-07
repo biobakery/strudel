@@ -1,8 +1,29 @@
-Strudel: Plan 02-06-2014
+Strudel: Plan 02-07-2014
 =========================================
+
+Done
+-------------------------------------------
+
+* Wrote type checkers
+** _is_1d
+
+Notes 
+-------------------------------------------
+
+* Parametric MI code:: 
+
+	df <- (bins1-1)*(bins2-1)
+	G = 2*n_samp*mutual_information
+	p_value <- 1-pchisq(G,df)
+
+For George 
+-------------------------------------------
+* I need to hand off generalized AUC code; code that scales with "bags" as well as individual pairs of associations 
+
 
 To Do From Previous 
 -------------------------------------------
+
 * auc and roc_curve needs to be made general so that it can handle bags of associations 
 * Also, fix roc_curve behavior; allow for meta_roc_curve -- if more than one method passed in, let it graph arbitrary number of ROC curves with legends 
 ** how to handle true positive/ false positive behavior? 
@@ -18,16 +39,4 @@ To Do From Previous
 ** name change? 
 ** website set-up (strudelpy.org -- try hutlab4?)
 ** HAllA, CAKE, SparseDOSSA integration 
-
-Notes
--------------------------------------------
-
-* Is there already a general function that handles 
-** 1-1 
-** 1-many
-** many-1 
-** many-to-many?
-* If not should write. 
-** Remember __eval, _eval, and eval handles a lot of these behaviors; refactor if necessary. 
-
 

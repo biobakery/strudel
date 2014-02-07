@@ -400,6 +400,20 @@ class Strudel:
 		Checks that pX and pY are consistent with each other, in terms of specified function pFun. 
 
 		"""
+	
+	def _is_empty( self, pObject ):
+		"""
+		Wrapper for both numpy arrays and regular lists 
+		"""
+		try:
+			bTrue = bool( pObject )
+			return not(bTrue)
+		except ValueError: # ambiguous case 
+			try:
+				bTrue = pObject.any( )
+				return not(bTrue)
+			except AttributeError:
+				raise Exception("Unknown data type.")
 
 	def _is_list( self, pObject ):
 		return self._check( pObject, list )
@@ -409,6 +423,29 @@ class Strudel:
 
 	def _is_array( self, pObject ):
 		return self._check( pObject, numpy.ndarray )
+
+	def _is_1d( self, pObject ):
+		"""
+		>>> import strudel 
+		>>> s = strudel.Strudel( )
+		>>> s._is_1d( [] )
+		"""
+
+		strErrorMessage = "Object empty; cannot determine type"
+		bEmpty = self._is_empty( pObject )
+
+		## Enforce non-empty invariance 
+		if bEmpty:
+			raise Exception(strErrorMessage)
+
+		## Assume that pObject is non-empty 
+		try:
+			iRow, iCol = pObject.shape 
+			return( iRow == 1 ) 
+		except ValueError: ## actual arrays but are 1-dimensional
+			return True
+		except AttributeError: ## not actual arrays but python lists 
+			return not self._is_iter( pObject[0] )
 
 	def _is_iter( self, pObject ):
 		"""
@@ -553,6 +590,9 @@ class Strudel:
 	#========================================#
 
 	def fit_to_data( self, strMethod ):
+		"""
+		Infer parameters based on model, now use those to generate synthetic data or run some baseline pipeline 
+		"""
 		pass 
 
 	#========================================#
@@ -1063,7 +1103,7 @@ class Strudel:
 	# Pipelines  
 	#=============================================================#
 	
-	def generate_synthetic_data( self, num_var, sparsity ):
+	def generate_synthetic_data( self, num_var, sparsity, strMethod = None ):
 		"""
 		Pipeline for synthetic data generation 
 
@@ -1081,6 +1121,9 @@ class Strudel:
 
 			X : numpy.ndarray 
 				Dataset containing `num_var` rows and `self.shape` columns 
+
+			A : numpy.ndarray 
+				Dataset of actual associations 
 
 		Notes
 		-----------
@@ -1198,13 +1241,16 @@ class Strudel:
 		return X,A
 
 	def run( self, method = "shapes" ):
+		"""
+		Generic run method; currently goes through hash_methods-- needs to be made more general 
+		"""
 		if method == "shapes":
 
 			self.set_noise( 0.01 )
 			self.set_base("linear")
 			self.set_base_param((-1,1))
 
-			for item in ["identity", "half_circle", "sine", "parabola", "cubic", "log", "vee"]:
+			for item in self.hash_method:
 				figure() 
 				v,x = getattr(self, item)()
 				print v
