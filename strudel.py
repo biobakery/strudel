@@ -139,7 +139,7 @@ class Strudel:
 		self.keys_attribute 	= ["__description__", "__author__", "__contact__" , "__version__", "base", "base_param", "shape", "num_var", 
 			"noise_param", "prior", "prior_param", "prior_shape"]
 
-		self.hash_distributions	= { "uniform"	: uniform, #This distribution is constant between loc and loc + scale.
+		self.hash_distribution	= { "uniform"	: uniform, #This distribution is constant between loc and loc + scale.
 									"normal"	: norm, 
 									"linear"	: linear,
 									"gamma"		: gamma, 
@@ -179,18 +179,16 @@ class Strudel:
 									"linear"	: 2,
 									"gamma"		: 2,
 									"pareto"	: 2,
-									"dirichlet"	: "?",
+									"dirichlet"	: -1, ##this to indicate that you don't know 
 									"beta"		: 2, }
 
-		self.list_distribution = self.hash_distributions.keys() 
+		self.list_distribution = self.hash_distribution.keys() 
 
 		self.list_spike_method = self.hash_spike_method.keys() 
 
 		self.list_association_method = self.hash_association_method.keys() 
 
-
-
-		self.generation_methods = ["identity", "half_circle", "sine", "parabola", "cubic", "log", "vee"]
+		self.generation_method = ["identity", "half_circle", "sine", "parabola", "cubic", "log", "vee"]
 
 		### Distributions parameters 
 		### Let the base distribution be just a single distribution, or an arbitrary tuple of distributions 
@@ -207,13 +205,13 @@ class Strudel:
 
 		self.num_sample 		= self.shape  		
 
-		self.base_distribution	= self._eval( self.hash_distributions, self.base )
+		self.base_distribution	= self._eval( self.hash_distribution, self.base )
 
 		### Prior distribution 
 
 		self.prior 				= self._eval( self.hash_conjugate, self.base ) 
 
-		self.prior_distribution = self._eval( self.hash_distributions, self.prior )
+		self.prior_distribution = self._eval( self.hash_distribution, self.prior )
 
 		self.prior_shape		= 100 
 
@@ -229,6 +227,11 @@ class Strudel:
 
 		self.noise_distribution = lambda variance: norm(0,variance) 
 
+		### Sparsity 
+
+		self.sparsity_param		= 0.1 # a value between [0,1]; 0 means completely sparse; 1 means completely dense 
+		#this should really be called `density_param` but "density" can mean so many different things and is ambiguous 
+
 		### Auxillary 
 
 		self.small 				= 0.001
@@ -241,7 +244,7 @@ class Strudel:
 
 		## dynamically add distributions to class namespace
 
-		for k,v in self.hash_distributions.items():
+		for k,v in self.hash_distribution.items():
 			setattr( self, k, v)  
 
 		assert( 0.0 <= self.noise_param <= 1.0 ), \
@@ -433,7 +436,6 @@ class Strudel:
 			pass
 
 
-
 	def _is_empty( self, pObject ):
 		"""
 		Wrapper for both numpy arrays and regular lists 
@@ -582,9 +584,9 @@ class Strudel:
 
 	def set_base( self, aDist ):
 		self.base = aDist 
-		self.base_distribution = self._eval( self.hash_distributions, self.base )
+		self.base_distribution = self._eval( self.hash_distribution, self.base )
 		self.prior = self._eval( self.hash_conjugate, self.base ) 
-		self.prior_distribution = self._eval( self.hash_distributions, self.prior ) if self.prior else None 
+		self.prior_distribution = self._eval( self.hash_distribution, self.prior ) if self.prior else None 
 
 	def set_prior( self, aDist ):
 
@@ -598,7 +600,7 @@ class Strudel:
 			aDist = self._make_invariant( aDist, num_param_dist )
 
 		self.prior = aDist 
-		self.prior_distribution = self._eval( self.hash_distributions, self.prior )
+		self.prior_distribution = self._eval( self.hash_distribution, self.prior )
 
 	def set_noise( self, noise ):
 		self.noise_param = noise 
@@ -866,7 +868,7 @@ class Strudel:
 				dist()
 			except TypeError:
 				try:
-					dist = self.hash_distributions[dist]
+					dist = self.hash_distribution[dist]
 				except KeyError:
 					raise Exception("Please provide a valid distribution")
 
@@ -1146,37 +1148,23 @@ class Strudel:
 	# Pipelines  
 	#=============================================================#
 	
-	def generate_synthetic_data( self, num_var, sparsity, strMethod = None ):
+	"""
+	*** Consider different types of inputs (both continuous + categorical):
+	**** Uniform random, no cluster structure, linear spikes
+	**** Normal random, no cluster structure, linear spikes
+	**** Uniform mixture model (clusters), linear spikes
+	**** Normal mixture model (clusters), linear spikes
+	**** Normal random, no cluster structure, sine spike
+	"""
+
+	def generate_linked_data( self, num_var = None, sparsity = None ):
 		"""
-		Pipeline for synthetic data generation 
-
-		Parameters
-		-------------
-
-			num_var : int 
-				number of variables in the dataset 
-
-			sparsity : float 
-				portion of the dataset that is random noise 
-
-		Returns 
-		------------
-
-			X : numpy.ndarray 
-				Dataset containing `num_var` rows and `self.shape` columns 
-
-			A : numpy.ndarray 
-				Dataset of actual associations 
-
-		Notes
-		-----------
-
-			* Fix so that random data generation propagates in a greedy fashion. 
-
+		Generates linked data and true labels
 		"""
+		if not sparsity:
+			sparsity = self.sparsity_param
 
-		### Set up correct parameters 
-		#self.set_base( "linear" ); self.set_base_param((-1,1)) ## This if I want linear data generation 
+		assert( 0.0 <= sparsity <= 1 ), "sparsity parameter must be between 0 and 1" 
 
 		aMethods = [getattr(self, m) for m in self.generation_methods]
 		iMethod = len( aMethods )
@@ -1283,6 +1271,37 @@ class Strudel:
 				
 		return X,A
 
+	def generate_synthetic_data( self, num_var, sparsity, strMethod = "linked" ):
+		"""
+		Pipeline for synthetic data generation 
+
+		Parameters
+		-------------
+
+			num_var : int 
+				number of variables in the dataset 
+
+			sparsity : float 
+				portion of the dataset that is random noise 
+
+		Returns 
+		------------
+
+			X : numpy.ndarray 
+				Dataset containing `num_var` rows and `self.shape` columns 
+
+			A : numpy.ndarray 
+				Dataset of actual associations 
+
+		Notes
+		-----------
+
+			* Fix so that random data generation propagates in a greedy fashion. 
+
+		"""
+
+		
+
 	def run( self, method = "shapes" ):
 		"""
 		Generic run method; currently goes through hash_methods-- needs to be made more general 
@@ -1302,109 +1321,6 @@ class Strudel:
 		else:
 			pass 
 
-	#=============================================================#
-	# Data visualization helpers 
-	#=============================================================#
-
-	def _compare( self, X, A, strMethod = "pearson"):
-		pass 
-
-	def compare( self, X, A, strMethod = "pearson" ):
-		"""
-		Compare random matrix X with known association A
-		"""
-		
-		pMethod = strMethod  
-		
-		hashDiscretize = {"pearson": False, "spearman": False, 
-						"mi": True, "mid": True, "adj_mi":True, 
-						"adj_mid": True, "norm_mi": True, "norm_mid": True }
-
-		hashMethods = {"pearson": halla.distance.cor, "norm_mi": halla.distance.norm_mi,
-						"mi": halla.distance.mi, "norm_mid" : halla.distance.norm_mid}
-
-		pFunDiscretize = halla.stats.discretize 
-
-		pFunMethod = hashMethods[pMethod]
-
-		if hashDiscretize[pMethod]: 
-			X = pFunDiscretize(X)
-
-		iRow, iCol = A.shape 
-		assert( iRow == iCol )
-		
-		aOut = [] 
-
-		for i,j in itertools.product(range(iRow),range(iCol)):
-			aOut.append( [(i,j), pFunMethod(X[i],X[j]), A[i][j]] ) 
-
-		#### IMPORTANT
-		#### I need to return the PROBABILITY VALUE OF BEING THE TRUE LABEL; 
-		#### hence, if associated with pval, then return 1-pval. 
-
-		return array(aOut)
-
-
-	def view( self, X, A, method = "pearson" ):
-		"""
-		Old function view; will need to be scrapped in the later edition
-		"""
-		return self.compare( X, A, method = method )
-
-
-	def plot_roc( self, fpr, tpr ):
-		"""
-		Plots the roc curve for a given set of false/true positve rates  
-
-		Parameters
-		------------
-
-		fpr: array of float
-			False Positive Rate or 1-Specificity 
-		tpr: array of float
-			True Positive Rate or Sensitivity 
-
-		Returns 
-		----------
-
-		pPlot: numpy plot object 
-			Pointer to the plot object 
-		"""
-		roc_auc = auc(fpr, tpr) 
-		pl = pylab 
-		pl.clf() 
-		pl.plot(fpr, tpr, label='ROC curve (area = %0.2f)' % roc_auc)
-		pl.plot([0, 1], [0, 1], 'k--')
-		pl.xlim([0.0, 1.0])
-		pl.ylim([0.0, 1.0])
-		pl.xlabel('False Positive Rate')
-		pl.ylabel('True Positive Rate')
-		pl.title('Receiver operating characteristic')
-		pl.legend(loc="lower right")
-		pl.show()
-
-	def roc( self, true_labels, prob_vec ):
-		"""
-		Takes true labels and the probability vectors and calculates the corresponding fpr/tpr; return roc object
-
-		Parameters
-		------------
-
-		true_labels: array of float
-			Binary labels
-		prob_vec: array of float
-			Probability of being a true label 
-
-		Returns 
-		----------
-
-		pPlot: numpy plot object 
-			Pointer to the plot object 
-		"""
-		fpr, tpr, thresholds = halla.stats.roc_curve( true_labels, prob_vec )
-		roc_auc = sklearn.metrics.auc( fpr, tpr )
-		self.plot_roc( fpr, tpr )
-		return roc_auc 
 
 	#=============================================================#
 	# Linkage helper functions   
@@ -1463,20 +1379,114 @@ class Strudel:
 		return predictor_matrix, response_matrix
 
 
-#if __name__ == "__main__":
-	#pass 
-	#predictor, response = generate_linkage( num_clusters =3, num_children=10, num_examples=20 )
+	#=============================================================#
+	# Test Evaluation Methods 
+	#=============================================================#
 
-	#csvw = csv.writer( sys.stdout, csv.excel_tab )
+	def _compare( self, X, A, strMethod = "pearson"):
+		pass 
 
-	#csvw.writerow( ["#Predictor"] )
+	def compare( self, X, A, strMethod = "pearson" ):
+		"""
+		Compare random matrix X with known association A
+		"""
+		
+		pMethod = strMethod  
+		
+		hashDiscretize = {"pearson": False, "spearman": False, 
+						"mi": True, "mid": True, "adj_mi":True, 
+						"adj_mid": True, "norm_mi": True, "norm_mid": True }
 
-	#for i, item in enumerate( predictor ): 
-	#	csvw.writerow( ["x" +str(i)] + list( item ) )
+		hashMethods = {"pearson": halla.distance.cor, "norm_mi": halla.distance.norm_mi,
+						"mi": halla.distance.mi, "norm_mid" : halla.distance.norm_mid}
 
-	#csvw.writerow( ["#Response"])
+		pFunDiscretize = halla.stats.discretize 
 
-	#for i, item in enumerate( response ):
-	#	csvw.writerow( ["y" + str(i)]  + list ( item ) )
+		pFunMethod = hashMethods[pMethod]
+
+		if hashDiscretize[pMethod]: 
+			X = pFunDiscretize(X)
+
+		iRow, iCol = A.shape 
+		assert( iRow == iCol )
+		
+		aOut = [] 
+
+		for i,j in itertools.product(range(iRow),range(iCol)):
+			aOut.append( [(i,j), pFunMethod(X[i],X[j]), A[i][j]] ) 
+
+		#### IMPORTANT
+		#### I need to return the PROBABILITY VALUE OF BEING THE TRUE LABEL; 
+		#### hence, if associated with pval, then return 1-pval. 
+
+		return array(aOut)
+
+
+
+	#=============================================================#
+	# Data visualization helpers + Plotter
+	#=============================================================#
+
+	def view( self, X, A, method = "pearson" ):
+		"""
+		Generic `view` method 
+		"""
+		pass 
+
+	def plot_roc( self, fpr, tpr ):
+		"""
+		Plots the roc curve for a given set of false/true positve rates  
+
+		Parameters
+		------------
+
+		fpr: array of float
+			False Positive Rate or 1-Specificity 
+		tpr: array of float
+			True Positive Rate or Sensitivity 
+
+		Returns 
+		----------
+
+		pPlot: numpy plot object 
+			Pointer to the plot object 
+		"""
+		roc_auc = auc(fpr, tpr) 
+		pl = pylab 
+		pl.clf() 
+		pl.plot(fpr, tpr, label='ROC curve (area = %0.2f)' % roc_auc)
+		pl.plot([0, 1], [0, 1], 'k--')
+		pl.xlim([0.0, 1.0])
+		pl.ylim([0.0, 1.0])
+		pl.xlabel('False Positive Rate')
+		pl.ylabel('True Positive Rate')
+		pl.title('Receiver operating characteristic')
+		pl.legend(loc="lower right")
+		pl.show()
+
+	def roc( self, true_labels, prob_vec ):
+		"""
+		Takes true labels and the probability vectors and calculates the corresponding fpr/tpr; return roc object
+
+		Parameters
+		------------
+
+		true_labels: array of float
+			Binary labels
+		prob_vec: array of float
+			Probability of being a true label 
+
+		Returns 
+		----------
+
+		pPlot: numpy plot object 
+			Pointer to the plot object 
+		"""
+		fpr, tpr, thresholds = halla.stats.roc_curve( true_labels, prob_vec )
+		roc_auc = sklearn.metrics.auc( fpr, tpr )
+		self.plot_roc( fpr, tpr )
+		return roc_auc 
+
+
 
 
