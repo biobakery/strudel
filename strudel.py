@@ -159,6 +159,17 @@ class Strudel:
 									"vee"			: self.__spike_vee,	}
 
 
+		self.hash_association_method = {"pearson": scipy.stats.pearsonr,
+										"spearman": scipy.stats.spearmanr, 
+										"kw": scipy.stats.mstats.kruskalwallis, 
+										"anova": scipy.stats.f_oneway, 
+										"x2": scipy.stats.chisquare,
+										"fisher": scipy.stats.fisher_exact, 
+										"norm_mi": halla.distance.norm_mi, 
+										"mi": halla.distance.mi,
+										"norm_mid": halla.distance.norm_mid 
+										}
+
 		self.hash_conjugate		= { "normal" 	: ("normal", "invgamma"), 
 									"uniform"	: "pareto", 
 									 } 
@@ -170,6 +181,14 @@ class Strudel:
 									"pareto"	: 2,
 									"dirichlet"	: "?",
 									"beta"		: 2, }
+
+		self.list_distribution = self.hash_distributions.keys() 
+
+		self.list_spike_method = self.hash_spike_method.keys() 
+
+		self.list_association_method = self.hash_association_method.keys() 
+
+
 
 		self.generation_methods = ["identity", "half_circle", "sine", "parabola", "cubic", "log", "vee"]
 
@@ -531,7 +550,16 @@ class Strudel:
 	# "Get" Methods 
 	#----------------------------------------#
 
-	def get_generation_methods( self ):
+	def get_spike_method( self ):
+			return self.list_spike_method 
+
+	def get_association_method( self ):
+		return self.list_association_method 
+
+	def get_distribution_method( self ):
+		return self.list_distribution 
+
+	def get_generation_method( self ):
 		return self.generation_methods 
 
 	def get_attribute( self ):
