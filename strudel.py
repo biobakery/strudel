@@ -680,6 +680,7 @@ class Strudel:
 
 		#assert( self._is_array( X ) and self._is_array( X[0] ) ), "X is not a non 1-dimensional array" ##make sure X is a proper, non-degenerate array
 
+		return self._association( X, Y, strMethod = strMethod, bPval = bPval, bParam = bParam, bNormalize = bNormalize, iIter = iIter, strNPMethod = strNPMethod )
 
 	def _association( self, X, Y, strMethod = "pearson", bPval = False, bParam = False, 
 		bNormalize = False, iIter = None, strNPMethod = "permutation" ):
@@ -687,7 +688,7 @@ class Strudel:
 		1-1 association testing
 		"""		
 
-		assert( not(self._is_iter(x[0])) and not(self._is_iter(y[0])) ), "X and Y must be 1-dimensional arrays or python iterable object"
+		assert( not(self._is_iter(X[0])) and not(self._is_iter(Y[0])) ), "X and Y must be 1-dimensional arrays or python iterable object"
 
 		## Common statistical functions: 
 		## http://docs.scipy.org/doc/scipy/reference/stats.html
@@ -1277,12 +1278,15 @@ class Strudel:
 	# Data visualization helpers 
 	#=============================================================#
 
-	def compare( self, X, A, method = "pearson" ):
-		return self.view( X, A, method = method )
+	def _compare( self, X, A, strMethod = "pearson"):
+		pass 
 
-	def view( self, X, A, method = "pearson" ):
-
-		pMethod = method 
+	def compare( self, X, A, strMethod = "pearson" ):
+		"""
+		Compare random matrix X with known association A
+		"""
+		
+		pMethod = strMethod  
 		
 		hashDiscretize = {"pearson": False, "spearman": False, 
 						"mi": True, "mid": True, "adj_mi":True, 
@@ -1306,7 +1310,18 @@ class Strudel:
 		for i,j in itertools.product(range(iRow),range(iCol)):
 			aOut.append( [(i,j), pFunMethod(X[i],X[j]), A[i][j]] ) 
 
+		#### IMPORTANT
+		#### I need to return the PROBABILITY VALUE OF BEING THE TRUE LABEL; 
+		#### hence, if associated with pval, then return 1-pval. 
+
 		return array(aOut)
+
+
+	def view( self, X, A, method = "pearson" ):
+		"""
+		Old function view; will need to be scrapped in the later edition
+		"""
+		return self.compare( X, A, method = method )
 
 
 	def plot_roc( self, fpr, tpr ):
