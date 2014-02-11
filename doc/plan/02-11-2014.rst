@@ -1,0 +1,66 @@
+Strudel: Plan 02-10-2014
+==========================
+
+Agenda Reminder 
+-------------------------------------------
+
+* HAllA
+  ** Implementation design, modularity, overall structure, and first tests in IPython look good
+  ** Evaluation
+  *** Four areas to consider: different types of inputs, different parameter settings, different competitors, different output evaluations
+  *** Last is easy - we can focus on simple ROCs for the forseeable future
+  *** Competitors to consider as a baseline:
+  **** Feature-wise parametric tests:
+  ***** Pearson = continuous/continuous
+  ***** ANOVA = continuous/categorical
+  ***** X2/Fishers = categorical/categorical
+  **** Feature-wise nonparametric tests:
+  ***** Spearman = continuous/continuous
+  ***** K-W = continuous/categorical
+  ***** X2/Fishers = categorical/categorical
+
+##Fishers is not done because of contingency table issues; fix later 
+
+  *** Consider different types of inputs (both continuous + categorical):
+  **** Uniform random, no cluster structure, linear spikes
+  **** Normal random, no cluster structure, linear spikes
+  **** Uniform mixture model (clusters), linear spikes
+  **** Normal mixture model (clusters), linear spikes
+  **** Normal random, no cluster structure, sine spike
+
+Notes 
+-------------------------------------------
+
+* Parametric MI code:: 
+
+        df <- (bins1-1)*(bins2-1)
+        G = 2*n_samp*mutual_information
+        p_value <- 1-pchisq(G,df)
+
+* Paper: MI and G-test for contingency tables 
+
+For George 
+-------------------------------------------
+
+* Fix association to be generalizable 
+    + reduce_method 
+  
+
+To Do From Previous 
+-------------------------------------------
+
+* Generic "invariance" function that makes sure everything is of the proper type for quick debugging purposes
+* auc and roc_curve needs to be made general so that it can handle bags of associations
+* Also, fix roc_curve behavior; allow for meta_roc_curve -- if more than one method passed in, let it graph arbitrary number of ROC curves with legends
+** how to handle true positive/ false positive behavior?
+** [[1,2,3],[4,5]] :: if any
+* Big task: refactor code and transfer from halla -> strudel if needed
+* Big task: finish implement test cases for George to initiate discussion.
+
+* Next priority
+** PyMC
+** PyMix
+** Wrapping to d3, etc
+** name change?
+** HAllA, CAKE, SparseDOSSA integration
+

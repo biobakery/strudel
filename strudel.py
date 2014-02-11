@@ -53,13 +53,15 @@ To Do
 
 """
 
-## Exception handling for optional packages 
+####### Exception handling for optional packages 
 
 try:
 	import halla 
 	bHAllA = True 
 except ImportError:
 	bHAllA = False 
+
+####### Required packages; eventually, will be wrapped around Strudel/HAllA objects 
 
 import scipy
 import numpy 
@@ -139,6 +141,13 @@ class Strudel:
 		self.keys_attribute 	= ["__description__", "__author__", "__contact__" , "__version__", "base", "base_param", "shape", "num_var", 
 			"noise_param", "prior", "prior_param", "prior_shape"]
 
+
+		### Prefixes 
+		self.prefix_preset_synthetic_data = "__preset_synthetic_data"
+
+		self.prefix_prest 		= "__preset"
+
+
 		self.hash_distribution	= { "uniform"	: uniform, #This distribution is constant between loc and loc + scale.
 									"normal"	: norm, 
 									"linear"	: linear,
@@ -170,10 +179,12 @@ class Strudel:
 										"norm_mid": halla.distance.norm_mid 
 										}
 
+	
+
+
 		self.hash_conjugate		= { "normal" 	: ("normal", "invgamma"), 
 									"uniform"	: "pareto", 
 									 } 
-
 		self.hash_num_param		= {"normal"		: 2,
 									"invgamma"	: 2,
 									"linear"	: 2,
@@ -229,7 +240,7 @@ class Strudel:
 
 		### Sparsity 
 
-		self.sparsity_param		= 0.1 # a value between [0,1]; 0 means completely sparse; 1 means completely dense 
+		self.sparsity_param		= 0.4 # a value between [0,1]; 0 means completely sparse; 1 means completely dense 
 		#this should really be called `density_param` but "density" can mean so many different things and is ambiguous 
 
 		### Auxillary 
@@ -244,15 +255,32 @@ class Strudel:
 
 		## dynamically add distributions to class namespace
 
-		for k,v in self.hash_distribution.items():
+		for k,v in self.hash_distribution.items( ):
 			setattr( self, k, v)  
+
+		## dynamically add preset definitions 
+		self.__set_definition_preset_random_matrix( ) 
 
 		assert( 0.0 <= self.noise_param <= 1.0 ), \
 			"Noise parameter must be a float between 0 and 1"
 
+		self.hash_preset = {"vec": {}, "mat": {"normal_linear_spike": getattr(self, "__preset_synthetic_data_normal_linear_spike"),
+											"normal_sine_spike": getattr(self,"__preset_synthetic_data_normal_sine_spike"),
+											"uniform_linear_spike": getattr( self, "__preset_synthetic_data_uniform_linear_spike" ),
+											"mixture_normal_linear_spike": getattr( self, "__preset_synthetic_data_mixture_normal_linear_spike" ),
+											"mixture_uniform_linear_spike": getattr( self, "__preset_synthetic_data_mixture_uniform_linear_spike" )}, "pipe": {}}
+
+		self.list_vector_preset = self.hash_preset["vec"].keys()
+		self.list_matrix_preset = self.hash_preset["mat"].keys()
+		self.list_pipeline_preset = self.hash_preset["pipe"].keys()
+
 	#========================================#
 	# Presets 
 	#========================================#
+
+	#----------------------------------------#
+	# General Pipeline 
+	#----------------------------------------#
 
 	def __preset_default( ):
 		pass 
@@ -268,6 +296,93 @@ class Strudel:
 
 	def __preset_mixture_uniform( ):
 		pass 
+
+	## self.hash_preset
+
+	#----------------------------------------#
+	# Synthetic Data Generation 
+	#----------------------------------------#
+
+	"""
+	Key: __preset_synthetic_data_ 
+
+	*** Consider different types of inputs (both continuous + categorical):
+	**** Uniform random, no cluster structure, linear spikes
+	**** Normal random, no cluster structure, linear spikes
+	**** Uniform mixture model (clusters), linear spikes
+	**** Normal mixture model (clusters), linear spikes
+	**** Normal random, no cluster structure, sine spike
+	"""
+
+	#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+	# Random Vector 
+	#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+
+	#### IID 
+
+	def __preset_synthetic_data_uniform( self ):
+		self.set_base("uniform")
+		self.set_base_param((-1,2))
+		return self.randmat( )
+
+	def __preset_synthetic_data_normal( self ):
+		self.set_base("normal")
+		self.set_base_param((0,1))
+		return self.randmat( )		
+
+	### MIXTURE 
+
+	def __preset_synthetic_data_mixture_uniform( self ):
+		aParam = [(-1,2),(-0.5,2)]
+		self.set_base(["uniform"]*2)
+		self.set_base_param( aParam )
+		return self.randmix( )
+
+	def __preset_synthetic_data_mixture_normal( self ):
+		aParam = [(0,1),(4,1)]
+		self.set_base(["normal"]*2)
+		self.set_base_param( aParam )
+		return self.randmix( )
+
+	#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+	# Meta: Random Matrix (With Linkage)
+	#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+
+	## __preset_synthetic_data_uniform_linear_spike
+	## __preset_synthetic_data_mixture_uniform_linear_spike
+	## __preset_synthetic_data_normal_linear_spike
+	## __preset_synthetic_data_mixture_normal_linear_spike
+	## __preset_synthetic_data_normal_sine_spike
+
+	## On-the-fly preset generation 
+
+	def __set_definition_preset_random_matrix( self ):
+		"""
+		This function is called from __init__
+		"""
+
+		strPostfixSpike = "_spike"
+		strPrefix = self.prefix_preset_synthetic_data ##doesn't have _ at the end 
+
+		aPresetDefault = [(strPrefix + "_") + strItem for strItem in ["uniform","normal"]]
+		aPresetMixture = [(strPrefix + "_") + strItem for strItem in ["mixture_uniform","mixture_normal"]]
+
+		for strSpikeMethod in self.list_spike_method:
+			for strPresetMethodDefault in aPresetDefault:
+				strFinal = strPresetMethodDefault + "_" + strSpikeMethod + strPostfixSpike
+				#print strFinal
+				pAttr = setattr( self, strFinal, lambda strMethod: self.generate_linked_data( method = strSpikeMethod ) )
+				#print getattr( self, strFinal )
+
+			for strPresetMethodMixture in aPresetMixture:
+				strFinal = strPresetMethodMixture + "_" + strSpikeMethod + strPostfixSpike
+				#print strFinal
+				pAttr = setattr( self, strFinal, lambda strMethod: self.generate_linked_data( method = strSpikeMethod ) )
+				#print getattr( self, strFinal )
+
+	#----------------------------------------#
+	# Plots/Visualization 
+	#----------------------------------------#
 
 	#========================================#
 	# Private helper functions 
@@ -404,6 +519,18 @@ class Strudel:
 	#----------------------------------------#
 	# Type-Checking Methods 
 	#----------------------------------------#
+
+	def __status( self ):
+		"""
+		Checks that the current status of HAlLA is okay, w.r.t. types, etc 
+		"""
+
+		assert( 0.0 <= self.noise_param <= 1.0 ), \
+			"Noise parameter must be a float between 0.0 and 1.0"
+
+		assert( 0.0 <= self.sparsity_param <= 1.0 ), \
+			"Sparsity parameter must be a float between 0.0 and 1.0"
+
 
 	def _check( self, pObject, pType, pFun = isinstance, pClause = "or" ):
 		"""
@@ -552,8 +679,14 @@ class Strudel:
 	# "Get" Methods 
 	#----------------------------------------#
 
+	def get_matrix_preset( self ):
+		return self.list_matrix_preset 
+
+	def get_preset_hash( self ):
+		return self.hash_preset 
+
 	def get_spike_method( self ):
-			return self.list_spike_method 
+		return self.list_spike_method 
 
 	def get_association_method( self ):
 		return self.list_association_method 
@@ -875,12 +1008,16 @@ class Strudel:
 		return array([dist.rvs( ) for _ in range(shape)])
 
 
-	def randmat( self, shape = (10,10), dist = None ):
+	def randmat( self, shape = None, dist = None ):
 		"""
 		Returns a shape-dimensional matrix drawn IID from base distribution 
 		Order: Row, Col 
 
 		"""	
+
+		if not shape:
+			shape = self.shape
+
 		H = self.base_distribution if not dist else dist #base measure 
 		
 		iRow, iCol = None, None 
@@ -1059,6 +1196,7 @@ class Strudel:
 			Transformed Matrix 
 
 		"""
+
 		pMethod = self.hash_spike_method[strMethod]
 		if aArgs:
 			return pMethod(X, *aArgs)
@@ -1157,121 +1295,7 @@ class Strudel:
 	**** Normal random, no cluster structure, sine spike
 	"""
 
-	def generate_linked_data( self, num_var = None, sparsity = None ):
-		"""
-		Generates linked data and true labels
-		"""
-		if not sparsity:
-			sparsity = self.sparsity_param
-
-		assert( 0.0 <= sparsity <= 1 ), "sparsity parameter must be between 0 and 1" 
-
-		aMethods = [getattr(self, m) for m in self.generation_methods]
-		iMethod = len( aMethods )
-
-		assert( 0<= sparsity <=1 ), "sparsity parameter must be a float between 0 and 1"
-		prob_random = sparsity ## probability of generating random adjacency 
-		prob_linked = 1-prob_random ## probability of generating true adjacency 
-
-		## Currently, assume that each method in aMethods is equally likely to be chosen 
-		prob_method = [1.0/iMethod] * iMethod 
-
-		num_samples = self.shape 
-
-		## Initialize adjacency matrix 
-		A = numpy.zeros( (num_var, num_var) )
-
-		## Initialize dataset 
-		X = numpy.zeros( (num_var, num_samples) )
-
-		bool_list = [self._categorical( [prob_random, prob_linked] ) for i in range(num_var) ]
-		print bool_list  
-
-		base_rv = array([]) 
-
-		## Populate the X matrix and identity elements in A matrix 
-		for i in range(num_var):
-			A[i][i] = 1 
-			if bool_list[i]: 
-				if not base_rv.any():
-					base_rv = self.randmat( num_samples ) 
-					X[i] = base_rv 
-				else:
-					cI = self._categorical( prob_method )
-					_, transformed_data = aMethods[cI]( shape = num_samples, rvs = base_rv )
-					X[i] = transformed_data 
-			else:
-				X[i] = self.randmat( num_samples )
-				
-		## Populate the A matrix for groups 
-
-		linkage_list = itertools.compress( range(num_var), bool_list )
-
-		for i,j in itertools.combinations( linkage_list, 2 ): 
-			A[i][j] = 1 ; A[j][i] = 1 
-
-		def _complicated_method( ):
-
-			for i,j in itertools.product( range(num_var), range(num_var) ):
-				
-				### BUGBUG: need to implement associativity 
-
-				if i > j: ## already visited nodes
-					fVal = A[j][i]
-					A[i][j] = fVal 
-					continue 
-				elif i == j:
-					A[i][j] = 1
-				else:
-					if X[i].any() and X[j].any(): ##make sure transitive property of association holds 
-						continue 
-					elif X[i].any() and not(X[j].any()):
-						bI = self._categorical( [prob_random,prob_linked] ) ##binary indicator 
-						if not bI:
-							X[j] = self.randmat( num_samples )
-							## A[i][j] = 0 
-						else: 
-							cI = self._categorical( prob_method )
-							X[i],X[j] = aMethods[cI]( shape = num_samples, rvs = X[i] ) #v,x 
-							A[i][j] = 1 
-					elif not(X[i].any()) and X[j].any():
-						bI = self._categorical( [prob_random,prob_linked] ) ##binary indicator 
-						if not bI:
-							X[i] = self.randmat( num_samples )
-							## A[i][j] = 0 
-						else: 
-							cI = self._categorical( prob_method )
-							X[j], X[i] = aMethods[cI]( shape = num_samples, rvs = X[j] ) #v,x 
-							A[i][j] = 1; A[j][i] = 1
-					else: ## both need to be initialized 
-						## Random or linkage?  
-						bI = self._categorical( [prob_random,prob_linked] ) ##binary indicator 
-						if not bI:
-							X[i] = self.randmat( num_samples )
-							X[j] = self.randmat( num_samples ) 
-							## A[i][j] = 0 
-						else: 
-							cI = self._categorical( prob_method )
-							X[i], X[j] = aMethods[cI]( shape = num_samples )
-							A[i][j] = 1; A[j][i] = 1
-
-			def _enforce_transitivity( A ):
-				"""
-				make sure transitivity holds
-				"""
-				first_row = A[0]
-				iCol = len(first_row)
-				for i,j in itertools.combinations( range(iCol), 2 ):
-					if i == 0 or j == 0:
-						continue 
-					elif first_row[i] and first_row[j]:
-						A[i][j] = 1 ; A[j][i] = 1
-
-				return A
-				
-		return X,A
-
-	def generate_synthetic_data( self, num_var, sparsity, strMethod = "linked" ):
+	def generate_synthetic_data( self, num_var = None, sparsity = None, method = "normal_linear_spike" ):
 		"""
 		Pipeline for synthetic data generation 
 
@@ -1299,6 +1323,95 @@ class Strudel:
 			* Fix so that random data generation propagates in a greedy fashion. 
 
 		"""
+
+		strType = "mat" 
+
+		pMethod = self.hash_preset[strType][method]
+
+		#pMethod = getattr(self, self.prefix_preset_synthetic_data + "_" + method )
+
+		try:
+			return pMethod( method ) 
+		except Exception:
+			return pMethod 
+
+
+	def generate_linked_data( self, num_var = None, method = None, sparsity = None ):
+		"""
+		Generates linked data and true labels
+		"""
+		
+		if not num_var:
+			num_var = self.shape 
+
+		assert( isinstance( num_var, int ) ), "num_var should be an integer" 
+
+		if not sparsity:
+			sparsity = self.sparsity_param
+
+		assert( 0.0 <= sparsity <= 1 ), "sparsity parameter must be between 0 and 1" 
+
+		if self._is_str( method ):
+			method = [method]
+
+		elif self._is_iter( method ):
+			method = list(method)
+
+		else:
+			method = self.list_spike_method 
+
+		#aMethods = [getattr(self, m) for m in self.generation_methods] 
+		aMethods = method 
+		iMethod = len( aMethods )
+
+		#print iMethod 
+
+		assert( 0.0 <= sparsity <= 1.0 ), "sparsity parameter must be a float between 0 and 1"
+		prob_random = 1.0-sparsity ## probability of generating random adjacency 
+		prob_linked = 1.0-prob_random ## probability of generating true adjacency 
+
+		## Currently, assume that each method in aMethods is equally likely to be chosen 
+		prob_method = [1.0/iMethod] * iMethod 
+
+		num_samples = self.shape 
+
+		## Initialize adjacency matrix 
+		A = numpy.zeros( (num_var, num_var) )
+
+		## Initialize dataset 
+		X = numpy.zeros( (num_var, num_samples) )
+
+		bool_list = [self._categorical( [prob_random, prob_linked] ) for i in range(num_var) ]
+		#print bool_list  
+
+		base_rv = array([]) 
+
+		## Populate the X matrix and identity elements in A matrix 
+		for i in range(num_var):
+			A[i][i] = 1 
+			if bool_list[i]: 
+				if not base_rv.any():
+					base_rv = self.randmat( num_samples ) 
+					X[i] = base_rv 
+				else:
+					cI = self._categorical( prob_method )
+
+					transformed_data = self.spike( base_rv, strMethod = aMethods[cI] )
+					#_, transformed_data = aMethods[cI]( shape = num_samples, rvs = base_rv )
+					X[i] = transformed_data 
+			else:
+				X[i] = self.randmat( num_samples )
+				
+		## Populate the A matrix for groups 
+
+		linkage_list = itertools.compress( range(num_var), bool_list )
+
+		for i,j in itertools.combinations( linkage_list, 2 ): 
+			A[i][j] = 1 ; A[j][i] = 1 				
+		
+		return X,A
+
+	
 
 		
 
