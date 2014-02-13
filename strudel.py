@@ -180,6 +180,10 @@ class Strudel:
 										}
 
 	
+		self.hash_meta_association_method = {"halla": {"halla_mi": None,
+											"halla_mid": None, 
+											"halla_norm_mid": None,
+											"halla_copula": None }}
 
 
 		self.hash_conjugate		= { "normal" 	: ("normal", "invgamma"), 
@@ -192,6 +196,8 @@ class Strudel:
 									"pareto"	: 2,
 									"dirichlet"	: -1, ##this to indicate that you don't know 
 									"beta"		: 2, }
+
+		self.hash_distribution_param = {"default":{"normal":(0,1), "uniform":(-1,2)},"mixture":{"normal":[(0,1),(4,1)], "uniform": [(-1,2),(-0.5,2)]}}
 
 		self.list_distribution = self.hash_distribution.keys() 
 
@@ -234,13 +240,13 @@ class Strudel:
 
 		### Noise 
 
-		self.noise_param		= 0.01 # a value between [0,1]; controls amount of noise added to the test distribution 
+		self.noise_param		= 0.1 # a value between [0,1]; controls amount of noise added to the test distribution 
 
 		self.noise_distribution = lambda variance: norm(0,variance) 
 
 		### Sparsity 
 
-		self.sparsity_param		= 0.4 # a value between [0,1]; 0 means completely sparse; 1 means completely dense 
+		self.sparsity_param		= 0.5 # a value between [0,1]; 0 means completely sparse; 1 means completely dense 
 		#this should really be called `density_param` but "density" can mean so many different things and is ambiguous 
 
 		### Auxillary 
@@ -259,20 +265,27 @@ class Strudel:
 			setattr( self, k, v)  
 
 		## dynamically add preset definitions 
-		self.__set_definition_preset_random_matrix( ) 
+		self.hash_preset = {"spiked_data": {}, "distribution": {}}
+		#self.__set_definition_preset_spiked_data( ) 
 
 		assert( 0.0 <= self.noise_param <= 1.0 ), \
 			"Noise parameter must be a float between 0 and 1"
 
-		self.hash_preset = {"vec": {}, "mat": {"normal_linear_spike": getattr(self, "__preset_synthetic_data_normal_linear_spike"),
-											"normal_sine_spike": getattr(self,"__preset_synthetic_data_normal_sine_spike"),
-											"uniform_linear_spike": getattr( self, "__preset_synthetic_data_uniform_linear_spike" ),
-											"mixture_normal_linear_spike": getattr( self, "__preset_synthetic_data_mixture_normal_linear_spike" ),
-											"mixture_uniform_linear_spike": getattr( self, "__preset_synthetic_data_mixture_uniform_linear_spike" )}, "pipe": {}}
+		#self.hash_preset = {"vec": {}, "mat": {"normal_linear_spike": getattr(self, "__preset_synthetic_data_normal_linear_spike"),
+		#									"normal_sine_spike": getattr(self,"__preset_synthetic_data_normal_sine_spike"),
+		#									"uniform_linear_spike": getattr( self, "__preset_synthetic_data_uniform_linear_spike" ),
+		#									"mixture_normal_linear_spike": getattr( self, "__preset_synthetic_data_mixture_normal_linear_spike" ),
+		#									"mixture_uniform_linear_spike": getattr( self, "__preset_synthetic_data_mixture_uniform_linear_spike" )}, "pipe": {}}
 
-		self.list_vector_preset = self.hash_preset["vec"].keys()
-		self.list_matrix_preset = self.hash_preset["mat"].keys()
-		self.list_pipeline_preset = self.hash_preset["pipe"].keys()
+		#self.list_vector_preset = self.hash_preset["vec"].keys()
+		self.list_spiked_data_preset = self.hash_preset["spiked_data"].keys()
+		#self.list_pipeline_preset = self.hash_preset["pipe"].keys()
+
+		for strSpikeMethod in self.list_spike_method:
+			for strType in self.hash_distribution_param.keys():
+				for strDist in self.hash_distribution_param[strType].keys():
+					strKeyFinal = strType + "_" + strDist + "_" + strSpikeMethod + "_spike" 
+					self.list_spiked_data_preset.append( strKeyFinal )
 
 	#========================================#
 	# Presets 
@@ -320,29 +333,29 @@ class Strudel:
 
 	#### IID 
 
-	def __preset_synthetic_data_uniform( self ):
-		self.set_base("uniform")
-		self.set_base_param((-1,2))
-		return self.randmat( )
+	#def __preset_synthetic_data_uniform( self ):
+	#	self.set_base("uniform")
+	#	self.set_base_param((-1,2))
+	#	return self.randmat( )
 
-	def __preset_synthetic_data_normal( self ):
-		self.set_base("normal")
-		self.set_base_param((0,1))
-		return self.randmat( )		
+	#def __preset_synthetic_data_normal( self ):
+	#	self.set_base("normal")
+	#	self.set_base_param((0,1))
+	#	return self.randmat( )		
 
-	### MIXTURE 
+	#### MIXTURE 
 
-	def __preset_synthetic_data_mixture_uniform( self ):
-		aParam = [(-1,2),(-0.5,2)]
-		self.set_base(["uniform"]*2)
-		self.set_base_param( aParam )
-		return self.randmix( )
+	#def __preset_synthetic_data_mixture_uniform( self ):
+	#	aParam = [(-1,2),(-0.5,2)]
+	#	self.set_base(["uniform"]*2)
+	#	self.set_base_param( aParam )
+	#	return self.randmix( )
 
-	def __preset_synthetic_data_mixture_normal( self ):
-		aParam = [(0,1),(4,1)]
-		self.set_base(["normal"]*2)
-		self.set_base_param( aParam )
-		return self.randmix( )
+	#def __preset_synthetic_data_mixture_normal( self ):
+	#	aParam = [(0,1),(4,1)]
+	#	self.set_base(["normal"]*2)
+	#	self.set_base_param( aParam )
+	#	return self.randmix( )
 
 	#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 	# Meta: Random Matrix (With Linkage)
@@ -355,30 +368,6 @@ class Strudel:
 	## __preset_synthetic_data_normal_sine_spike
 
 	## On-the-fly preset generation 
-
-	def __set_definition_preset_random_matrix( self ):
-		"""
-		This function is called from __init__
-		"""
-
-		strPostfixSpike = "_spike"
-		strPrefix = self.prefix_preset_synthetic_data ##doesn't have _ at the end 
-
-		aPresetDefault = [(strPrefix + "_") + strItem for strItem in ["uniform","normal"]]
-		aPresetMixture = [(strPrefix + "_") + strItem for strItem in ["mixture_uniform","mixture_normal"]]
-
-		for strSpikeMethod in self.list_spike_method:
-			for strPresetMethodDefault in aPresetDefault:
-				strFinal = strPresetMethodDefault + "_" + strSpikeMethod + strPostfixSpike
-				#print strFinal
-				pAttr = setattr( self, strFinal, lambda strMethod: self.generate_linked_data( method = strSpikeMethod ) )
-				#print getattr( self, strFinal )
-
-			for strPresetMethodMixture in aPresetMixture:
-				strFinal = strPresetMethodMixture + "_" + strSpikeMethod + strPostfixSpike
-				#print strFinal
-				pAttr = setattr( self, strFinal, lambda strMethod: self.generate_linked_data( method = strSpikeMethod ) )
-				#print getattr( self, strFinal )
 
 	#----------------------------------------#
 	# Plots/Visualization 
@@ -1075,13 +1064,15 @@ class Strudel:
 
 		assert( len( param ) == len( pi ) )
 		
-		aOut = []  
-		
 		def _draw():
 			z = self._categorical( pi )
 			return self._eval_rvs( H[z], param[z], () )
 
-		return [[ _draw() for _ in range(iCol)] for _ in (range(iRow) if iRow else range(1)) ]
+		aOut = array([[ _draw() for _ in range(iCol)] for _ in (range(iRow) if iRow else range(1)) ])
+		
+		return aOut if iRow else aOut[0] 
+		##returns array and not a list of arrays when there is only one element 
+		##let's do what is sane, not what is technically type-proof; this is python after all.
 
 	#[((0,0.01),(1,1)), ((5,0.01),(2,1)), ((10,0.01),(3,1))]
 
@@ -1287,6 +1278,48 @@ class Strudel:
 	#=============================================================#
 	
 	"""
+	def __set_definition_preset_spiked_data( self ):
+		hDP = self.hash_distribution_param 
+
+		strPrefix = self.prefix_preset_synthetic_data
+		strPostfixSpike = "_spike"
+		strKeyDefault = "default"
+		strKeyMixture = "mixture"
+
+		def __preset_wrapper( strType, strDist, strSpikeMethod ):
+			
+			pParam = hDP[strType][strDist]
+
+			def __return( _strSpikeMethod, _strGenerationMethod ):
+				return self.generate_spiked_data( spike_method = _strSpikeMethod, generation_method = _strGenerationMethod )
+			
+			if strType == "default":
+				self.set_base(strDist)
+				self.set_base_param(pParam)
+				return __return( strSpikeMethod, "randmat" )
+
+			if strType == "mixture":
+				self.set_base([strDist]*len(pParam))
+				self.set_base_param(pParam)
+				return __return( strSpikeMethod, "randmix" )
+		
+
+		for strSpikeMethod in self.list_spike_method:
+			for strDist, pParam in hDP[strKeyDefault].items():
+				strFinal = strPrefix + "_" + strKeyDefault + "_" + strDist + strPostfixSpike 
+				pFinal = __preset_wrapper( strKeyDefault, strDist, strSpikeMethod )
+				pAttr = setattr( self, strFinal, pFinal ) 
+				self.hash_preset["spiked_data"][strFinal.replace( strPrefix + "_", "" )] = pFinal 
+
+			for strDist, pParam in hDP[strKeyMixture].items():
+				strFinal = strPrefix + "_" + strKeyMixture + "_" + strDist + strPostfixSpike 
+				pFinal =  __preset_wrapper( strKeyMixture, strDist, strSpikeMethod )
+				pAttr = setattr( self, strFinal, pFinal ) 
+				self.hash_preset["spiked_data"][strFinal.replace( strPrefix + "_", "" )] = pFinal 
+	"""
+
+
+	"""
 	*** Consider different types of inputs (both continuous + categorical):
 	**** Uniform random, no cluster structure, linear spikes
 	**** Normal random, no cluster structure, linear spikes
@@ -1295,7 +1328,7 @@ class Strudel:
 	**** Normal random, no cluster structure, sine spike
 	"""
 
-	def generate_synthetic_data( self, num_var = None, sparsity = None, method = "normal_linear_spike" ):
+	def generate_synthetic_data( self, shape = None, sparsity = None, method = "default_normal_linear_spike" ):
 		"""
 		Pipeline for synthetic data generation 
 
@@ -1324,25 +1357,61 @@ class Strudel:
 
 		"""
 
-		strType = "mat" 
+		pShape = shape
+		fSparsity = sparsity 
 
-		pMethod = self.hash_preset[strType][method]
+		strMethod = method 
+		hDP = self.hash_distribution_param
+		strKeyDefault = "default"
+		strKeyMixture = "mixture"
 
-		#pMethod = getattr(self, self.prefix_preset_synthetic_data + "_" + method )
+		strDist = None 
+		strSpikeMethod = None
 
-		try:
-			return pMethod( method ) 
-		except Exception:
-			return pMethod 
+		for _strSpikeMethod in self.hash_spike_method.keys():
+			if _strSpikeMethod in strMethod:
+				strSpikeMethod = _strSpikeMethod 
+
+		if not strSpikeMethod:
+			raise Exception("Unknown spike method.")
+
+		for _strDist in self.hash_distribution.keys():
+			if _strDist in strMethod:
+				strDist = _strDist 
+
+		if not strDist:
+			raise Exception("Unknown distribution.")
+
+		if strKeyDefault in strMethod: ##default generation 
+			pParam = hDP[strKeyDefault][strDist]
+			self.set_base(strDist)
+			self.set_base_param(pParam)
+			return self.generate_spiked_data( shape = pShape, sparsity = fSparsity, generation_method = "randmat", spike_method = strSpikeMethod )
+			
+
+		elif strKeyMixture in strMethod: ##mixture generation 
+			pParam = hDP[strKeyMixture][strDist]
+			self.set_base([strDist]*len(pParam))
+			self.set_base_param(pParam)
+			return self.generate_spiked_data( shape = pShape, sparsity = fSparsity, generation_method = "randmix", spike_method = strSpikeMethod )
 
 
-	def generate_linked_data( self, num_var = None, method = None, sparsity = None ):
+	def generate_spiked_data( self, shape = None, spike_method = None, generation_method = "randmat", sparsity = None ):
 		"""
 		Generates linked data and true labels
+		
+		Sparsity is how populated the dataset is; 1 means fully linked, 0 means everything is iid 
 		"""
 		
-		if not num_var:
-			num_var = self.shape 
+		if not shape:
+			shape = self.shape 
+
+		try:
+			iRow, iCol = shape 
+			num_var = iRow  
+			num_samples = iCol 
+		except (ValueError,TypeError):
+			num_var, num_samples = shape, shape 
 
 		assert( isinstance( num_var, int ) ), "num_var should be an integer" 
 
@@ -1351,17 +1420,26 @@ class Strudel:
 
 		assert( 0.0 <= sparsity <= 1 ), "sparsity parameter must be between 0 and 1" 
 
-		if self._is_str( method ):
-			method = [method]
+		if self._is_str( spike_method ):
+			spike_method = [spike_method]
 
-		elif self._is_iter( method ):
-			method = list(method)
+		elif self._is_iter( spike_method ):
+			spike_method = list(spike_method)
 
 		else:
-			method = self.list_spike_method 
+			spike_method = self.list_spike_method 
+
+
+		strGenerationMethod = generation_method 
+		pGenerationMethod = None
+
+		try:
+			pGenerationMethod = getattr( self, strGenerationMethod )
+		except AttributeError:
+			Exception("Invalid generation method. Available options are: randmat, randvec, randmix, randnet")
 
 		#aMethods = [getattr(self, m) for m in self.generation_methods] 
-		aMethods = method 
+		aMethods = spike_method 
 		iMethod = len( aMethods )
 
 		#print iMethod 
@@ -1372,8 +1450,6 @@ class Strudel:
 
 		## Currently, assume that each method in aMethods is equally likely to be chosen 
 		prob_method = [1.0/iMethod] * iMethod 
-
-		num_samples = self.shape 
 
 		## Initialize adjacency matrix 
 		A = numpy.zeros( (num_var, num_var) )
@@ -1390,8 +1466,9 @@ class Strudel:
 		for i in range(num_var):
 			A[i][i] = 1 
 			if bool_list[i]: 
+
 				if not base_rv.any():
-					base_rv = self.randmat( num_samples ) 
+					base_rv = pGenerationMethod( shape = num_samples )  #self.randmat( num_samples ) 
 					X[i] = base_rv 
 				else:
 					cI = self._categorical( prob_method )
@@ -1400,7 +1477,7 @@ class Strudel:
 					#_, transformed_data = aMethods[cI]( shape = num_samples, rvs = base_rv )
 					X[i] = transformed_data 
 			else:
-				X[i] = self.randmat( num_samples )
+				X[i] = pGenerationMethod( shape = num_samples ) #self.randmat( num_samples ) 
 				
 		## Populate the A matrix for groups 
 
@@ -1601,5 +1678,68 @@ class Strudel:
 		return roc_auc 
 
 
+
+### OLD CODE 
+"""
+	def __set_definition_preset_random_matrix( self ):
+		
+
+		strPostfixSpike = "_spike"
+		strPrefix = self.prefix_preset_synthetic_data ##doesn't have _ at the end 
+
+		aPresetDefault = [(strPrefix + "_") + strItem for strItem in ["uniform","normal"]]
+		aPresetMixture = [(strPrefix + "_") + strItem for strItem in ["mixture_uniform","mixture_normal"]]
+
+		#if not self.hash_preset:
+		#	self.hash_preset = {"vec": {}, "mat": {}, "pipe": {}}
+
+		for strSpikeMethod in self.list_spike_method:
+			for strPresetMethodDefault in aPresetDefault: ##### Default IID 
+				strFinal = strPresetMethodDefault + "_" + strSpikeMethod + strPostfixSpike
+				#print strFinal
+				#method = strSpikeMethod
+
+				def _pFun_normal_default():
+					self.set_base("normal")
+					self.set_base_param((0,1))
+					return self.generate_spiked_data( spike_method = strSpikeMethod )
+
+				def _pFun_uniform_default():
+					self.set_base("uniform")
+					self.set_base_param((-1,2))
+					return self.generate_spiked_data( spike_method = strSpikeMethod ) 
+
+				pFinal = _pFun_normal_default if "normal" in strPresetMethodDefault else _pFun_uniform_default
+				pAttr = setattr( self, strFinal, pFinal ) 
+
+				self.hash_preset["spiked_data"][strFinal.replace( strPrefix + "_", "" )] = pFinal 
+
+
+				#print getattr( self, strFinal )
+
+			for strPresetMethodMixture in aPresetMixture: ##### For Mixtures
+
+				def _pFun_normal_mixture():
+					aParam = [(0,1),(4,1)]
+					self.set_base(["normal"]*2)
+					self.set_base_param( aParam )
+					return self.generate_spiked_data( spike_method = strSpikeMethod, generation_method = "randmix" ) 
+
+
+				def _pFun_uniform_mixture():
+					aParam = [(-1,2),(-0.5,2)]
+					self.set_base(["uniform"]*2)
+					self.set_base_param( aParam )
+					return self.generate_spiked_data( spike_method = strSpikeMethod, generation_method = "randmix" ) 
+
+				strFinal = strPresetMethodMixture + "_" + strSpikeMethod + strPostfixSpike
+				#print strFinal
+				#method = strSpikeMethod
+				pFinal = _pFun_normal_mixture if "normal" in strPresetMethodMixture else _pFun_uniform_mixture
+				pAttr = setattr( self, strFinal, pFinal ) 
+
+				self.hash_preset["spiked_data"][strFinal.replace( strPrefix + "_", "" )] = pFinal 				
+				#print getattr( self, strFinal )
+"""
 
 
