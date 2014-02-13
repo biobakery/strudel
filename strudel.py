@@ -244,6 +244,10 @@ class Strudel:
 
 		self.noise_distribution = lambda variance: norm(0,variance) 
 
+		### Permutation Noise 
+
+		self.permutation_noise_param = 0.1 # a value between [0,1]; controls amount of noise induced in linkages by permutation 
+
 		### Sparsity 
 
 		self.sparsity_param		= 0.5 # a value between [0,1]; 0 means completely sparse; 1 means completely dense 
@@ -286,6 +290,94 @@ class Strudel:
 				for strDist in self.hash_distribution_param[strType].keys():
 					strKeyFinal = strType + "_" + strDist + "_" + strSpikeMethod + "_spike" 
 					self.list_spiked_data_preset.append( strKeyFinal )
+
+	#==========================================================#
+	# Static Methods 
+	#==========================================================# 
+
+	#### This is modified code for Strudel; there is a need to consolidate 
+	@staticmethod 
+	def m( pArray, pFunc, axis = 0 ):
+		""" 
+		Maps pFunc over the array pArray 
+		"""
+
+		if bool(axis): 
+			pArray = pArray.T
+			# Set the axis as per numpy convention 
+		if isinstance( pFunc ,np.ndarray ):
+			return pArray[pFunc]
+		else: #generic function type
+			return array( [pFunc(item) for item in pArray] ) 
+
+	@staticmethod 
+	def mp( pArray, pFunc, axis = 0 ):
+		"""
+		Map _by pairs_ ; i.e. apply pFunc over all possible pairs in pArray 
+		"""
+
+		if bool(axis): 
+			pArray = pArray.T
+
+		pIndices = itertools.combinations( range(pArray.shape[0]), 2 )
+
+		return array([pFunc(pArray[i],pArray[j]) for i,j in pIndices])
+
+	@staticmethod 
+	def mc( pArray1, pArray2, pFunc, axis = 0, bExpand = False ):
+		"""
+		Map _by cross product_ for ; i.e. apply pFunc over all possible pairs in pArray1 X pArray2 
+		
+		If not bExpand, gives a flattened array; else give full expanded array 
+		"""
+
+		if bool(axis): 
+			pArray1, pArray2 = pArray1.T, pArray2.T
+
+		iRow1, iCol1 = pArray1.shape
+		iRow2, iCol2 = pArray2.shape 
+
+		pIndices = itertools.product( range(pArray1.shape[0]), range(pArray2.shape[0]) )
+
+		aOut = array([pFunc(pArray1[i],pArray2[j]) for i,j in pIndices])
+		return ( aOut if not bExpand else numpy.reshape( aOut, (iRow1, iRow2) ) )
+
+	@staticmethod 
+	def r( pArray, pFunc, axis = 0 ):
+		"""
+		Reduce over array 
+
+		pFunc is X x Y -> R 
+
+		"""
+		if bool(axis):
+			pArray = pArray.T
+
+		return reduce( pFunc, pArray )
+
+	@staticmethod 
+	def rd( pArray, strMethod = "pca" ):
+		"""
+		General reduce-dimension method 
+
+		Parameters 
+		--------------
+
+			pArray: numpy.ndarray
+			strMethod : str 
+				{"pca", "mca"}
+
+		Returns 
+		-------------
+
+		"""
+		pass 
+
+	def rc( pArray1, pArray2, strMethod = "cca" ):
+		"""
+		Reduce dimensions couple-wise 
+		"""
+		pass 
 
 	#========================================#
 	# Presets 
@@ -331,42 +423,6 @@ class Strudel:
 	# Random Vector 
 	#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
-	#### IID 
-
-	#def __preset_synthetic_data_uniform( self ):
-	#	self.set_base("uniform")
-	#	self.set_base_param((-1,2))
-	#	return self.randmat( )
-
-	#def __preset_synthetic_data_normal( self ):
-	#	self.set_base("normal")
-	#	self.set_base_param((0,1))
-	#	return self.randmat( )		
-
-	#### MIXTURE 
-
-	#def __preset_synthetic_data_mixture_uniform( self ):
-	#	aParam = [(-1,2),(-0.5,2)]
-	#	self.set_base(["uniform"]*2)
-	#	self.set_base_param( aParam )
-	#	return self.randmix( )
-
-	#def __preset_synthetic_data_mixture_normal( self ):
-	#	aParam = [(0,1),(4,1)]
-	#	self.set_base(["normal"]*2)
-	#	self.set_base_param( aParam )
-	#	return self.randmix( )
-
-	#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
-	# Meta: Random Matrix (With Linkage)
-	#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
-
-	## __preset_synthetic_data_uniform_linear_spike
-	## __preset_synthetic_data_mixture_uniform_linear_spike
-	## __preset_synthetic_data_normal_linear_spike
-	## __preset_synthetic_data_mixture_normal_linear_spike
-	## __preset_synthetic_data_normal_sine_spike
-
 	## On-the-fly preset generation 
 
 	#----------------------------------------#
@@ -382,7 +438,7 @@ class Strudel:
 	
 	def __load_data( self ):
 		pass 
-
+ 
 	def __eval( self, base, param, pEval = None ):
 		"""
 		One-one evaluation helper function for _eval 
@@ -399,6 +455,8 @@ class Strudel:
 					return tuple([base[p] for p in param])
 				except Exception:
 					return None 
+		elif isinstance( param, int ):
+			return base[param]
 		elif isinstance( param, str ) and param[0] == ".": ##"dot notation"
 			param = param[1:]
 			return getattr( base, param )( pEval )
@@ -428,7 +486,6 @@ class Strudel:
 
 	def _eval( self, aBase, aParam, pEval = "*" ):
 		"""
-
 		Parameters 
 		----------
 
@@ -452,20 +509,37 @@ class Strudel:
 			many, one 
 		Ambiguous:
 			one, many 
+
+
+		Example
+		-------------
+			#import strudel, halla
+			#s = strudel.Strudel( )
+			#hash = {"a":1,"b":2,"c":3}
+			#hash_new = {"a":10,"b":20,"c":30} 
+			#s._eval(halla, [".Tree"]*3) ##rather than [getattr( halla, x ) for x in ["Tree"]*3]; significantly shorter
+			#s._eval(hash,["a","b"]) ##rather than [hash[strKey] for strKey in ["a","b"]]
+			#s._eval([hash,hash_new], "a") ##c.f. [h["a"] for h in [hash, hash_new]]
+
 		"""
 		
 		pOut = None 
 
-		if self._is_iter( aBase ) and self._is_iter( aParam[0] ): ## Both aBase and aParam are iterables in 1-1 fashion
+		#if self._is_iter( aBase ) and self._is_iter( aParam[0] ): ## Both aBase and aParam are iterables in 1-1 fashion
+		### WARNING: I hope this doesn't cause a mess -- why did I do the [0] in the first place? 
+
+		if self._is_iter( aBase ) and self._is_iter( aParam ): ## Both aBase and aParam are iterables in 1-1 fashion
+			#print "many to many!"
 			assert( len(aBase) == len(aParam) )
 			pOut = [self.__eval(f,x,pEval) for f,x in zip(aBase,aParam)]
 
-		elif self._is_iter( aBase ) and (self._is_tuple( aParam ) or self._is_str( aParam )): ## aParam same for all in aBase; many to one 
+		elif self._is_iter( aBase ) and (self._is_tuple( aParam ) or self._is_str( aParam ) or self._is_int( aParam ) ): ## aParam same for all in aBase; many to one 
+			#print "many to one"
 			aParam = [aParam for _ in range(len(aBase))] 
 			pOut = [self.__eval(f,x,pEval) for f,x in zip(aBase,aParam)]
 
 		elif not self._is_iter( aBase ): ## aBase and aParam are actually single objects 
-
+			#print "single objects"
 			try: 
 				pOut = self.__eval( aBase, aParam, pEval )
 			except Exception: ## last resort is one to many, since this is ambiguous; aParam is usually always an iterable 
@@ -473,8 +547,11 @@ class Strudel:
 			
 					pOut = [self.__eval(aBase, x) for x in aParam] ## one to many, where the keys are taken as literal 
 				except Exception:
-			
+		
 					pOut = [self.__eval_many(aBase, x) for x in aParam] ## one to many, where the keys are themselves taken as iterable 
+					## Note: one to many is ambiguous because base is either a single object or an iterable, whereas the parameters can be 
+					## nasty things like ((1,1),(1,2)) where the instances (1,1) and (1,2) should be taken as single objects, not a true 
+					## "iterable"
 
 		return pOut 
 
@@ -496,7 +573,7 @@ class Strudel:
 		else:
 			return 1 
 
-	def _convert( self, pObj, iLen = None ):
+	def _convert_to_iterable( self, pObj, iLen = None ):
 		"""
 		Convert to iterable, if applicable 
 		"""
@@ -536,7 +613,6 @@ class Strudel:
 	def _cross_check( self, pX, pY, pFun = len ):
 		"""
 		Checks that pX and pY are consistent with each other, in terms of specified function pFun. 
-
 		"""
 	
 	def _is_meta( self, pObject ):
@@ -550,7 +626,6 @@ class Strudel:
 		else:
 			### invariance; object not empty 
 			pass
-
 
 	def _is_empty( self, pObject ):
 		"""
@@ -566,11 +641,18 @@ class Strudel:
 			except AttributeError:
 				raise Exception("Unknown data type.")
 
+	### These functions are absolutely unncessary; get rid of them! 
 	def _is_list( self, pObject ):
 		return self._check( pObject, list )
 
 	def _is_tuple( self, pObject ):
 		return self._check( pObject, tuple )
+
+	def _is_str( self, pObject ):
+		return self._check( pObject, str )
+
+	def _is_int( self, pObject ):
+		return self._check( pObject, int )    
 
 	def _is_array( self, pObject ):
 		return self._check( pObject, numpy.ndarray )
@@ -605,9 +687,6 @@ class Strudel:
 		"""
 
 		return self._check( pObject, [list, tuple, numpy.ndarray] )
-
-	def _is_str( self, pObject ):
-		return self._check( pObject, str )
 
 	#----------------------------------------#
 	# Invariance principle 
@@ -782,58 +861,6 @@ class Strudel:
 		hashMethods = {} 
 		pass 
 
-	def association( self, X, Y, strMethod = "pearson", bPval = False, bParam = False, 
-		bNormalize = False, iIter = None, strNPMethod = "permutation" ):
-		"""
-		Test the association between arrays X and Y. 
-		X and Y can be 1-dimensional arrays or multi-dimensional arrays;
-		in the multidimensional case, appropriate multivariate generalizations 
-		are to be used in place of traditional methods.
-
-		If a non-parametric test is used, `self.num_iteration` is used for the iteration parameter
-		if not specified otherwise. 
-
-		Parameters
-		-------------
-
-			X: numpy.ndarray
-
-			Y: numpy.ndarray
-
-			strMethod: str 
-
-			bPval: bool 
-				True if p-value is requested 
-
-			bParam: bool
-				True if parametric p-value generation requested; otherwise, 
-				nonparametric permutation test used instead 
-
-
-		Returns 
-		--------------
-
-			d: float
-				association value 
-
-			p: float
-				optional p-value 
-
-		"""
-		bDiscretize = bNormalize ##BUGBUG fix this later when there are more normalization methods other than discretization 
-
-
-		## just like in the "eval" functions, there are 4 cases
-		## 1. one-to-one 
-		## 2. one-to-many
-		## 3. many-to-one 
-		## 4. many-to-many 
-
-
-		#assert( self._is_array( X ) and self._is_array( X[0] ) ), "X is not a non 1-dimensional array" ##make sure X is a proper, non-degenerate array
-
-		return self._association( X, Y, strMethod = strMethod, bPval = bPval, bParam = bParam, bNormalize = bNormalize, iIter = iIter, strNPMethod = strNPMethod )
-
 	def _association( self, X, Y, strMethod = "pearson", bPval = False, bParam = False, 
 		bNormalize = False, iIter = None, strNPMethod = "permutation" ):
 		"""
@@ -955,6 +982,85 @@ class Strudel:
 				## BUGBUG: define general association/distance objects so that this can be avoided
 				## Currently, there is a need to wrap around different association definition 
 				return __invariance( aOut )
+
+	def _association_many( self, X, Y, strMethod = "pearson", bPval = False, bParam = False, 
+		bNormalize = False, iIter = None, strNPMethod = "permutation", strReduceMethod = None, 
+		strCorrectionMethod = None, preset = None ):
+
+		assert( not self._is_1d( X ) and not self._is_1d( Y ) ) 
+
+		if not strReduceMethod:
+			aAssoc = self.mc( self, X, Y, lambda x,y: self._association( x,y, strMethod = strMethod, bPval = bPval, bNormalize = bNormalize, 
+				iIter = iIter, strNPMethod = strNPMethod, preset = preset ) )
+
+			aAssoc_adjusted = halla.stats.p_adjust( aAssoc, method = "fdr" ) 
+
+			return aAssoc_adjusted 
+
+		else:
+			pass 
+			
+	def association( self, X, Y, strMethod = "pearson", bPval = False, bParam = False, 
+		bNormalize = False, iIter = None, strNPMethod = "permutation", preset = None ):
+		"""
+		Test the association between arrays X and Y. 
+		X and Y can be 1-dimensional arrays or multi-dimensional arrays;
+		in the multidimensional case, appropriate multivariate generalizations 
+		are to be used in place of traditional methods.
+
+		If a non-parametric test is used, `self.num_iteration` is used for the iteration parameter
+		if not specified otherwise. 
+
+		Parameters
+		-------------
+
+			X: numpy.ndarray
+
+			Y: numpy.ndarray
+
+			strMethod: str 
+
+			bPval: bool 
+				True if p-value is requested 
+
+			bParam: bool
+				True if parametric p-value generation requested; otherwise, 
+				nonparametric permutation test used instead 
+
+
+		Returns 
+		--------------
+
+			d: float
+				association value 
+
+			p: float
+				optional p-value 
+
+		"""
+		bDiscretize = bNormalize ##BUGBUG fix this later when there are more normalization methods other than discretization 
+
+
+		## just like in the "_eval" functions, there are potentially 4 cases
+		## 1. one-to-one <- 
+		## 2. one-to-many
+		## 3. many-to-one 
+		## 4. many-to-many <-
+
+		## 1 and 4 are the msot important; focus on those 
+
+		X,Y = array(X), array(Y) 
+
+		assert( X.any() and Y.any() )
+
+		if not self._is_1d( X ) and not self._is_1d( Y ):
+			pass
+
+		#assert( self._is_array( X ) and self._is_array( X[0] ) ), "X is not a non 1-dimensional array" ##make sure X is a proper, non-degenerate array
+
+		return self._association( X, Y, strMethod = strMethod, bPval = bPval, bParam = bParam, bNormalize = bNormalize, iIter = iIter, strNPMethod = strNPMethod )
+
+	
 	
 	#========================================#
 	# Distribution helpers 
@@ -1145,9 +1251,6 @@ class Strudel:
 	# Adjacency matrix helper functions 
 	#=============================================================#
 
-	def generate( self, method = "randmat" ):
-		pass 
-
 	def adjacency( self ):
 		"""
 		Produce probabilistic adjacency matrix describing the linkage pattern in 
@@ -1276,48 +1379,6 @@ class Strudel:
 	#=============================================================#
 	# Pipelines  
 	#=============================================================#
-	
-	"""
-	def __set_definition_preset_spiked_data( self ):
-		hDP = self.hash_distribution_param 
-
-		strPrefix = self.prefix_preset_synthetic_data
-		strPostfixSpike = "_spike"
-		strKeyDefault = "default"
-		strKeyMixture = "mixture"
-
-		def __preset_wrapper( strType, strDist, strSpikeMethod ):
-			
-			pParam = hDP[strType][strDist]
-
-			def __return( _strSpikeMethod, _strGenerationMethod ):
-				return self.generate_spiked_data( spike_method = _strSpikeMethod, generation_method = _strGenerationMethod )
-			
-			if strType == "default":
-				self.set_base(strDist)
-				self.set_base_param(pParam)
-				return __return( strSpikeMethod, "randmat" )
-
-			if strType == "mixture":
-				self.set_base([strDist]*len(pParam))
-				self.set_base_param(pParam)
-				return __return( strSpikeMethod, "randmix" )
-		
-
-		for strSpikeMethod in self.list_spike_method:
-			for strDist, pParam in hDP[strKeyDefault].items():
-				strFinal = strPrefix + "_" + strKeyDefault + "_" + strDist + strPostfixSpike 
-				pFinal = __preset_wrapper( strKeyDefault, strDist, strSpikeMethod )
-				pAttr = setattr( self, strFinal, pFinal ) 
-				self.hash_preset["spiked_data"][strFinal.replace( strPrefix + "_", "" )] = pFinal 
-
-			for strDist, pParam in hDP[strKeyMixture].items():
-				strFinal = strPrefix + "_" + strKeyMixture + "_" + strDist + strPostfixSpike 
-				pFinal =  __preset_wrapper( strKeyMixture, strDist, strSpikeMethod )
-				pAttr = setattr( self, strFinal, pFinal ) 
-				self.hash_preset["spiked_data"][strFinal.replace( strPrefix + "_", "" )] = pFinal 
-	"""
-
 
 	"""
 	*** Consider different types of inputs (both continuous + categorical):
@@ -1678,7 +1739,6 @@ class Strudel:
 		return roc_auc 
 
 
-
 ### OLD CODE 
 """
 	def __set_definition_preset_random_matrix( self ):
@@ -1742,4 +1802,79 @@ class Strudel:
 				#print getattr( self, strFinal )
 """
 
+"""
+	def __set_definition_preset_spiked_data( self ):
+		hDP = self.hash_distribution_param 
 
+		strPrefix = self.prefix_preset_synthetic_data
+		strPostfixSpike = "_spike"
+		strKeyDefault = "default"
+		strKeyMixture = "mixture"
+
+		def __preset_wrapper( strType, strDist, strSpikeMethod ):
+			
+			pParam = hDP[strType][strDist]
+
+			def __return( _strSpikeMethod, _strGenerationMethod ):
+				return self.generate_spiked_data( spike_method = _strSpikeMethod, generation_method = _strGenerationMethod )
+			
+			if strType == "default":
+				self.set_base(strDist)
+				self.set_base_param(pParam)
+				return __return( strSpikeMethod, "randmat" )
+
+			if strType == "mixture":
+				self.set_base([strDist]*len(pParam))
+				self.set_base_param(pParam)
+				return __return( strSpikeMethod, "randmix" )
+		
+
+		for strSpikeMethod in self.list_spike_method:
+			for strDist, pParam in hDP[strKeyDefault].items():
+				strFinal = strPrefix + "_" + strKeyDefault + "_" + strDist + strPostfixSpike 
+				pFinal = __preset_wrapper( strKeyDefault, strDist, strSpikeMethod )
+				pAttr = setattr( self, strFinal, pFinal ) 
+				self.hash_preset["spiked_data"][strFinal.replace( strPrefix + "_", "" )] = pFinal 
+
+			for strDist, pParam in hDP[strKeyMixture].items():
+				strFinal = strPrefix + "_" + strKeyMixture + "_" + strDist + strPostfixSpike 
+				pFinal =  __preset_wrapper( strKeyMixture, strDist, strSpikeMethod )
+				pAttr = setattr( self, strFinal, pFinal ) 
+				self.hash_preset["spiked_data"][strFinal.replace( strPrefix + "_", "" )] = pFinal 
+	"""
+
+#### IID 
+
+	#def __preset_synthetic_data_uniform( self ):
+	#	self.set_base("uniform")
+	#	self.set_base_param((-1,2))
+	#	return self.randmat( )
+
+	#def __preset_synthetic_data_normal( self ):
+	#	self.set_base("normal")
+	#	self.set_base_param((0,1))
+	#	return self.randmat( )		
+
+	#### MIXTURE 
+
+	#def __preset_synthetic_data_mixture_uniform( self ):
+	#	aParam = [(-1,2),(-0.5,2)]
+	#	self.set_base(["uniform"]*2)
+	#	self.set_base_param( aParam )
+	#	return self.randmix( )
+
+	#def __preset_synthetic_data_mixture_normal( self ):
+	#	aParam = [(0,1),(4,1)]
+	#	self.set_base(["normal"]*2)
+	#	self.set_base_param( aParam )
+	#	return self.randmix( )
+
+	#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+	# Meta: Random Matrix (With Linkage)
+	#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+
+	## __preset_synthetic_data_uniform_linear_spike
+	## __preset_synthetic_data_mixture_uniform_linear_spike
+	## __preset_synthetic_data_normal_linear_spike
+	## __preset_synthetic_data_mixture_normal_linear_spike
+	## __preset_synthetic_data_normal_sine_spike
