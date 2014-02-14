@@ -1701,7 +1701,7 @@ class Strudel:
 	def _compare( self, X, A, strMethod = "pearson"):
 		pass 
 
-	def compare( self, X, A, strMethod = "pearson" ):
+	def compare_one( self, X, A, strMethod = "pearson" ):
 		"""
 		Compare random matrix X with known association A
 		"""
@@ -1736,12 +1736,6 @@ class Strudel:
 
 		return array(aOut)
 
-	def compare_two( self, X, Y, A, strMethod = "pearson" ):
-		pass 
-
-	## If measure of "closeness", must do 1-(nonparametric percentile estimate) <- This should be the default option!!!!!!!!! 
-	## If measure of "farness" ("distance"), can use nonparametric percentile estimate 
-
 	#=============================================================#
 	# Data visualization helpers + Plotter
 	#=============================================================#
@@ -1772,7 +1766,7 @@ class Strudel:
 		"""
 		roc_auc = auc(fpr, tpr) 
 		pl = pylab 
-		pl.clf() 
+		pl.figure() 
 		pl.plot(fpr, tpr, label='ROC curve (area = %0.2f)' % roc_auc)
 		pl.plot([0, 1], [0, 1], 'k--')
 		pl.xlim([0.0, 1.0])
@@ -1801,7 +1795,9 @@ class Strudel:
 		roc_auc: float
 			AUC value 
 		"""
-		fpr, tpr, thresholds = halla.stats.roc_curve( true_labels, prob_vec )
+		from sklearn.metrics import roc_curve, auc
+
+		fpr, tpr, thresholds = roc_curve( true_labels, prob_vec )
 		roc_auc = sklearn.metrics.auc( fpr, tpr )
 		self.plot_roc( fpr, tpr )
 		return roc_auc 
