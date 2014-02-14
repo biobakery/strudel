@@ -296,8 +296,8 @@ class Strudel:
 	#==========================================================# 
 
 	#### This is modified code for Strudel; there is a need to consolidate 
-	@staticmethod 
-	def m( pArray, pFunc, axis = 0 ):
+	#@staticmethod 
+	def m( self, pArray, pFunc, axis = 0 ):
 		""" 
 		Maps pFunc over the array pArray 
 		"""
@@ -310,8 +310,8 @@ class Strudel:
 		else: #generic function type
 			return array( [pFunc(item) for item in pArray] ) 
 
-	@staticmethod 
-	def mp( pArray, pFunc, axis = 0 ):
+	#@staticmethod 
+	def mp( self, pArray, pFunc, axis = 0 ):
 		"""
 		Map _by pairs_ ; i.e. apply pFunc over all possible pairs in pArray 
 		"""
@@ -323,8 +323,8 @@ class Strudel:
 
 		return array([pFunc(pArray[i],pArray[j]) for i,j in pIndices])
 
-	@staticmethod 
-	def mc( pArray1, pArray2, pFunc, axis = 0, bExpand = False ):
+	#@staticmethod 
+	def mc( self, pArray1, pArray2, pFunc, axis = 0, bExpand = False ):
 		"""
 		Map _by cross product_ for ; i.e. apply pFunc over all possible pairs in pArray1 X pArray2 
 		
@@ -342,8 +342,8 @@ class Strudel:
 		aOut = array([pFunc(pArray1[i],pArray2[j]) for i,j in pIndices])
 		return ( aOut if not bExpand else numpy.reshape( aOut, (iRow1, iRow2) ) )
 
-	@staticmethod 
-	def r( pArray, pFunc, axis = 0 ):
+	#@staticmethod 
+	def r( self, pArray, pFunc, axis = 0 ):
 		"""
 		Reduce over array 
 
@@ -355,8 +355,8 @@ class Strudel:
 
 		return reduce( pFunc, pArray )
 
-	@staticmethod 
-	def rd( pArray, strMethod = "pca" ):
+	#@staticmethod 
+	def rd( self, pArray, strMethod = "pca" ):
 		"""
 		General reduce-dimension method 
 
@@ -373,11 +373,20 @@ class Strudel:
 		"""
 		pass 
 
-	def rc( pArray1, pArray2, strMethod = "cca" ):
+	def rc( self, pArray1, pArray2, strMethod = "cca" ):
 		"""
 		Reduce dimensions couple-wise 
 		"""
 		pass 
+
+	def p( self, pArray, axis = 0 ):
+		"""
+		Permute along given axis
+		"""
+		if bool(axis):
+			pArray = pArray.T
+
+		return numpy.random.permutation( pArray )
 
 	#========================================#
 	# Presets 
@@ -862,7 +871,7 @@ class Strudel:
 		pass 
 
 	def _association( self, X, Y, strMethod = "pearson", bPval = False, bParam = False, 
-		bNormalize = False, iIter = None, strNPMethod = "permutation" ):
+		bNormalize = False, iIter = None, strNPMethod = "permutation", preset = None ):
 		"""
 		1-1 association testing
 		"""		
@@ -938,7 +947,7 @@ class Strudel:
 				
 				fAssociation = __invariance( pAssociation( X, Y ) )
 				
-				fP = scipy.stats.percentileofscore( aDist, fAssociation ) 
+				fP = scipy.stats.percentileofscore( aDist, fAssociation )/100.0
 				
 				return fAssociation, fP  
 
@@ -953,7 +962,7 @@ class Strudel:
 				fAssociation = __invariance( pAssociation( X,Y ) )
 				aDist = [__permute(X,Y, pAssociation=pAssociation) for _ in range(iIter)] ##array containing finite estimation of sampling distribution 
 				
-				fP = 1.0 - scipy.stats.percentileofscore( aDist, fAssociation )/100.0 ##not sure about syntax; check later
+				fP = 1.0 - scipy.stats.percentileofscore( aDist, fAssociation )/100.0 
 				return fAssociation, fP 
 
 			hashMethod = {"bootstrap": _bootstrap,
@@ -990,18 +999,20 @@ class Strudel:
 		assert( not self._is_1d( X ) and not self._is_1d( Y ) ) 
 
 		if not strReduceMethod:
-			aAssoc = self.mc( self, X, Y, lambda x,y: self._association( x,y, strMethod = strMethod, bPval = bPval, bNormalize = bNormalize, 
+			aAssoc = self.mc( X, Y, lambda x,y: self._association( x,y, strMethod = strMethod, bPval = bPval, bNormalize = bNormalize, 
 				iIter = iIter, strNPMethod = strNPMethod, preset = preset ) )
 
-			aAssoc_adjusted = halla.stats.p_adjust( aAssoc, method = "fdr" ) 
+			if strCorrectionMethod:
+				aAssoc_adjusted = ( halla.stats.p_adjust( [x[1] for x in aAssoc], method = "fdr" ) if bPval else aAssoc ) 
+			else:
+				aAssoc_adjusted = aAssoc 
 
 			return aAssoc_adjusted 
 
-		else:
-			pass 
 			
-	def association( self, X, Y, strMethod = "pearson", bPval = False, bParam = False, 
-		bNormalize = False, iIter = None, strNPMethod = "permutation", preset = None ):
+	def association( self, X, Y = None, strMethod = "pearson", bPval = False, bParam = False, 
+		bNormalize = False, iIter = None, strNPMethod = "permutation", strReduceMethod = None, 
+		strCorrectionMethod = None, preset = None ):
 		"""
 		Test the association between arrays X and Y. 
 		X and Y can be 1-dimensional arrays or multi-dimensional arrays;
@@ -1027,7 +1038,6 @@ class Strudel:
 				True if parametric p-value generation requested; otherwise, 
 				nonparametric permutation test used instead 
 
-
 		Returns 
 		--------------
 
@@ -1038,9 +1048,7 @@ class Strudel:
 				optional p-value 
 
 		"""
-		bDiscretize = bNormalize ##BUGBUG fix this later when there are more normalization methods other than discretization 
-
-
+		
 		## just like in the "_eval" functions, there are potentially 4 cases
 		## 1. one-to-one <- 
 		## 2. one-to-many
@@ -1051,16 +1059,19 @@ class Strudel:
 
 		X,Y = array(X), array(Y) 
 
-		assert( X.any() and Y.any() )
+		if self._is_empty( Y ):
+			assert( not self._is_1d( X ) )
+			"print Y is empty"
+			return self.mp( X, lambda x,y: self._association( x,y, strMethod = strMethod, bPval = bPval, bNormalize = bNormalize, 
+				iIter = iIter, strNPMethod = strNPMethod, preset = preset ) )
 
-		if not self._is_1d( X ) and not self._is_1d( Y ):
-			pass
-
-		#assert( self._is_array( X ) and self._is_array( X[0] ) ), "X is not a non 1-dimensional array" ##make sure X is a proper, non-degenerate array
-
-		return self._association( X, Y, strMethod = strMethod, bPval = bPval, bParam = bParam, bNormalize = bNormalize, iIter = iIter, strNPMethod = strNPMethod )
-
+		elif not self._is_empty( X ) and not self._is_empty( Y ):
+			if not self._is_1d( X ) and not self._is_1d( Y ): 
+				return self._association_many( X, Y, strMethod = strMethod, bPval = bPval, bParam = bParam, bNormalize = bNormalize, iIter = iIter, strNPMethod = strNPMethod )
+			elif self._is_1d( X ) and self._is_1d( Y ): 
+				return self._association( X, Y, strMethod = strMethod, bPval = bPval, bParam = bParam, bNormalize = bNormalize, iIter = iIter, strNPMethod = strNPMethod )
 	
+		#assert( self._is_array( X ) and self._is_array( X[0] ) ), "X is not a non 1-dimensional array" ##make sure X is a proper, non-degenerate array
 	
 	#========================================#
 	# Distribution helpers 
@@ -1113,7 +1124,7 @@ class Strudel:
 		if not shape:
 			shape = self.shape
 
-		H = self.base_distribution if not dist else dist #base measure 
+		H = self.base_distribution if not dist else self.hash_distribution[dist] #base measure 
 		
 		iRow, iCol = None, None 
 
@@ -1180,7 +1191,6 @@ class Strudel:
 		##returns array and not a list of arrays when there is only one element 
 		##let's do what is sane, not what is technically type-proof; this is python after all.
 
-	#[((0,0.01),(1,1)), ((5,0.01),(2,1)), ((10,0.01),(3,1))]
 
 	def randnet( self, num_children = 2, shape = None, adj = False ):
 		"""
@@ -1271,7 +1281,7 @@ class Strudel:
 	# Spike functions 
 	#=============================================================#
 
-	def spike( self, X, strMethod = "linear", aArgs = [] ):
+	def spike( self, X, strMethod = "linear", sparsity = 1.0, bAdjacency = False, aArgs = [] ):
 		"""
 		Introduce spikes between variables. 
 
@@ -1292,10 +1302,26 @@ class Strudel:
 		"""
 
 		pMethod = self.hash_spike_method[strMethod]
-		if aArgs:
-			return pMethod(X, *aArgs)
+		fSparsity = sparsity
+
+		if self._is_1d( X ):
+			if aArgs:
+				return pMethod(X, *aArgs)
+			else:
+				return pMethod(X) 
 		else:
-			return pMethod(X) 
+
+			aOut = [] 
+			iRow, iCol = X.shape 
+			abSpike = [] 
+
+			for i in range(iRow):
+				bSpike = self._categorical( [1-fSparsity,fSparsity] ) 
+				abSpike.append(bSpike)
+				aOut.append( ((pMethod(X[i], *aArgs) if aArgs else pMethod(X[i])) if bSpike else self.randmat( shape = iCol )) )
+			aOut = array(aOut)
+			A = numpy.diag( abSpike )
+			return aOut if not bAdjacency else aOut, A 
 
 	def __spike_linear( self, X ):
 		shape = X.shape  
@@ -1389,12 +1415,53 @@ class Strudel:
 	**** Normal random, no cluster structure, sine spike
 	"""
 
+	def spike_synthetic_data( self, X, A = None, sparsity = None, spike_method = "parabola" ):
+		"""
+		Spikes X and returns a spiked array Y with association matrix Y 
+
+		Parameters
+		---------------
+
+			X
+			spike_method 
+
+		Returns 
+		--------------
+
+			Y,B 
+
+		Notes
+		--------------
+
+			First write this without "grouping" structure in X; then expand to take this case into account. 
+
+		"""
+
+		X, A = array(X),array(A)
+
+		assert( not self._is_1d( X ) )
+
+		if not sparsity:
+			sparsity = self.sparsity_param
+
+		pMethod = self.hash_spike_method[spike_method]
+
+		if self._is_empty( A ):
+			return self.spike( X, strMethod = spike_method, sparsity = sparsity )
+
+		else:
+			return None 
+
+
 	def generate_synthetic_data( self, shape = None, sparsity = None, method = "default_normal_linear_spike" ):
 		"""
 		Pipeline for synthetic data generation 
 
 		Parameters
 		-------------
+
+			X : numpy.ndarray
+				If this is non-empty, uses this to produce linkage on Z; otherwise generates one from scratch 
 
 			num_var : int 
 				number of variables in the dataset 
@@ -1405,7 +1472,7 @@ class Strudel:
 		Returns 
 		------------
 
-			X : numpy.ndarray 
+			Z : numpy.ndarray 
 				Dataset containing `num_var` rows and `self.shape` columns 
 
 			A : numpy.ndarray 
@@ -1549,9 +1616,6 @@ class Strudel:
 		
 		return X,A
 
-	
-
-		
 
 	def run( self, method = "shapes" ):
 		"""
@@ -1672,7 +1736,11 @@ class Strudel:
 
 		return array(aOut)
 
+	def compare_two( self, X, Y, A, strMethod = "pearson" ):
+		pass 
 
+	## If measure of "closeness", must do 1-(nonparametric percentile estimate) <- This should be the default option!!!!!!!!! 
+	## If measure of "farness" ("distance"), can use nonparametric percentile estimate 
 
 	#=============================================================#
 	# Data visualization helpers + Plotter
@@ -1730,8 +1798,8 @@ class Strudel:
 		Returns 
 		----------
 
-		pPlot: numpy plot object 
-			Pointer to the plot object 
+		roc_auc: float
+			AUC value 
 		"""
 		fpr, tpr, thresholds = halla.stats.roc_curve( true_labels, prob_vec )
 		roc_auc = sklearn.metrics.auc( fpr, tpr )
