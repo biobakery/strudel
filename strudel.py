@@ -142,6 +142,11 @@ class Strudel:
 			"noise_param", "prior", "prior_param", "prior_shape"]
 
 
+		### Modes 
+
+		self.mode_verbose = False
+		self.mode_easy = True 
+
 		### Prefixes 
 		self.prefix_preset_synthetic_data = "__preset_synthetic_data"
 
@@ -159,6 +164,22 @@ class Strudel:
 									"pareto"	: pareto, 
 									}
 		
+		self.hash_distribution_param_default = { "uniform"	: (-1,2), #This distribution is constant between loc and loc + scale.
+									"normal"	: (0,1), 
+									"linear"	: (-1,1),
+									"gamma"		: None, 
+									"invgamma"	: None,
+									"lognormal"	: None,
+									"beta"		: None,
+									"dirichlet" : None, 
+									"pareto"	: None, 
+									}
+
+		###### BUGBUG: mixtures should be scaleable to arbitrary number of dimensions 
+		self.hash_distribution_param_mixture = {"normal":[(0,1),(4,1)], "uniform": [(-1,2),(-0.5,2)]}
+
+		self.hash_distribution_param = {"default":self.hash_distribution_param_default,"mixture": self.hash_distribution_param_mixture}
+
 		self.hash_spike_method = {"linear"			: self.__spike_linear,
 									"sine"			: self.__spike_sine,
 									"half_circle" 	: self.__spike_half_circle,
@@ -166,10 +187,7 @@ class Strudel:
 									"cubic"			: self.__spike_cubic,
 									"log"			: self.__spike_log,
 									"vee"			: self.__spike_vee,	}
-
 		
-			
-			
 
 		## Common statistical functions: 
 		## http://docs.scipy.org/doc/scipy/reference/stats.html
@@ -210,7 +228,6 @@ class Strudel:
 									"dirichlet"	: -1, ##this to indicate that you don't know 
 									"beta"		: 2, }
 
-		self.hash_distribution_param = {"default":{"normal":(0,1), "uniform":(-1,2)},"mixture":{"normal":[(0,1),(4,1)], "uniform": [(-1,2),(-0.5,2)]}}
 
 		self.list_distribution = self.hash_distribution.keys() 
 
@@ -802,6 +819,17 @@ class Strudel:
 	def set_base( self, aDist ):
 		self.base = aDist 
 		self.base_distribution = self._eval( self.hash_distribution, self.base )
+		
+		###BUGBUG: must fix for general usage pattern; currently, the following conditionals assume that aDist is singular
+		if self.mode_easy and self._is_str( aDist ):
+			aSplit = aDist.split("-")
+			if "mixture" in aSplit:
+				if self.hash_distribution_param["mixture"].get(aDist): ##mixture has higher priority than default
+					self.set_base_param( self.hash_distribution_param["mixture"][aDist])
+			else:
+				if self.hash_distribution_param["default"].get(aDist): ##automatically set base parameters 
+					self.set_base_param( self.hash_distribution_param["default"][aDist])
+				
 		self.prior = self._eval( self.hash_conjugate, self.base ) 
 		self.prior_distribution = self._eval( self.hash_distribution, self.prior ) if self.prior else None 
 
