@@ -167,6 +167,13 @@ class Strudel:
 									"log"			: self.__spike_log,
 									"vee"			: self.__spike_vee,	}
 
+		
+			
+			
+
+		## Common statistical functions: 
+		## http://docs.scipy.org/doc/scipy/reference/stats.html
+
 
 		self.hash_association_method = {"pearson": scipy.stats.pearsonr,
 										"spearman": scipy.stats.spearmanr, 
@@ -176,8 +183,14 @@ class Strudel:
 										"fisher": scipy.stats.fisher_exact, 
 										"norm_mi": halla.distance.norm_mi, 
 										"mi": halla.distance.mi,
-										"norm_mid": halla.distance.norm_mid 
+										"norm_mid": halla.distance.norm_mid,
+										"halla": lambda X,Y: halla.HAllA(X,Y).run( ),
 										}
+
+		hash_association_parametric = {"pearson": True,
+										"spearman": True,
+										"anova": True,
+										} 
 
 	
 		self.hash_meta_association_method = {"halla": {"halla_mi": None,
@@ -629,26 +642,20 @@ class Strudel:
 		Is pObject an iterable of iterable? 
 		"""
 
-		if self._is_empty( pObject ): 
-			raise Exception("Object empty; cannot determine type")
-
-		else:
-			### invariance; object not empty 
-			pass
+		try: 
+			pObject[0]
+			return self._is_iter( pObject[0] )	
+		except IndexError:
+			return False 
 
 	def _is_empty( self, pObject ):
 		"""
 		Wrapper for both numpy arrays and regular lists 
 		"""
-		try:
-			bTrue = bool( pObject )
-			return not(bTrue)
-		except ValueError: # ambiguous case 
-			try:
-				bTrue = pObject.any( )
-				return not(bTrue)
-			except AttributeError:
-				raise Exception("Unknown data type.")
+		
+		aObject = array(pObject)
+
+		return not aObject.any()
 
 	### These functions are absolutely unncessary; get rid of them! 
 	def _is_list( self, pObject ):
@@ -876,29 +883,23 @@ class Strudel:
 		1-1 association testing
 		"""		
 
-		assert( not(self._is_iter(X[0])) and not(self._is_iter(Y[0])) ), "X and Y must be 1-dimensional arrays or python iterable object"
+		if not "halla" in strMethod:
+			assert( not(self._is_iter(X[0])) and not(self._is_iter(Y[0])) ), "X and Y must be 1-dimensional arrays or python iterable object"
+		
+		#hash_method = {"pearson": scipy.stats.pearsonr,
+		#				"spearman": scipy.stats.spearmanr, 
+		#				"kw": scipy.stats.mstats.kruskalwallis, 
+		#				"anova": scipy.stats.f_oneway, 
+		#				"x2": scipy.stats.chisquare,
+		#				"fisher": scipy.stats.fisher_exact, 
+		#				"norm_mi": halla.distance.norm_mi, 
+		#				"mi": halla.distance.mi,
+		#				"norm_mid": halla.distance.norm_mid 
+		#				}
 
-		## Common statistical functions: 
-		## http://docs.scipy.org/doc/scipy/reference/stats.html
-
-		hash_method = {"pearson": scipy.stats.pearsonr,
-						"spearman": scipy.stats.spearmanr, 
-						"kw": scipy.stats.mstats.kruskalwallis, 
-						"anova": scipy.stats.f_oneway, 
-						"x2": scipy.stats.chisquare,
-						"fisher": scipy.stats.fisher_exact, 
-						"norm_mi": halla.distance.norm_mi, 
-						"mi": halla.distance.mi,
-						"norm_mid": halla.distance.norm_mid 
-						}
 
 		##Does parametric test exist? 
-		hash_parametric = {"pearson": True,
-							"spearman": True,
-							"anova": True,
-							} 
-
-
+		
 		# Automatically determine if have to be discretized? 
 		#hashDiscretize = {"pearson": False, "spearman": False, 
 		#				"mi": True, "mid": True, "adj_mi":True, 
@@ -906,7 +907,7 @@ class Strudel:
 
 		bDiscretize = bNormalize ##BUGBUG fix this later when there are more normalization methods other than discretization 
 
-		pMethod = hash_method[strMethod]
+		pMethod = self.hash_association_method[strMethod]
 
 		if bDiscretize:
 			X,Y = halla.discretize( X ), halla.discretize( Y )
@@ -978,19 +979,28 @@ class Strudel:
 			return pMethod( X, Y, pAssociation, iIter = iIter )
 
 		if bParam:
-			assert( hash_parametric[strMethod] ), "Parametric error bar generation does not exist for the %s method" %strMethod
+			assert( self.hash_association_parametric[strMethod] ), "Parametric error bar generation does not exist for the %s method" %strMethod
 			aOut = pMethod(X,Y)
 			
-			return (aOut[0] if not bool(bPval) else aOut)
+			if bPval == -1:
+				return aOut[0]
+			elif bPval == 0:
+				return aOut 
+			elif bPval == 1:
+				return aOut[1]
 
 		else:
-			if bPval:
-				return _np_error_bars( X, Y, pAssociation = pMethod, iIter = iIter, strMethod = strNPMethod )
-			else:
+			if bPval == -1:
 				aOut = pMethod(X,Y)				
 				## BUGBUG: define general association/distance objects so that this can be avoided
 				## Currently, there is a need to wrap around different association definition 
 				return __invariance( aOut )
+			
+			elif bPval == 0:
+				return _np_error_bars( X, Y, pAssociation = pMethod, iIter = iIter, strMethod = strNPMethod )
+			elif bPval == 1:
+				return _np_error_bars( X, Y, pAssociation = pMethod, iIter = iIter, strMethod = strNPMethod )[1]
+				
 
 	def _association_many( self, X, Y, strMethod = "pearson", bPval = False, bParam = False, 
 		bNormalize = False, iIter = None, strNPMethod = "permutation", strReduceMethod = None, 
@@ -1031,8 +1041,11 @@ class Strudel:
 
 			strMethod: str 
 
-			bPval: bool 
-				True if p-value is requested 
+			bPval: int  
+		
+				-1 -> give only association value 
+				0 -> give both association value and pvalue 
+				1 -> give only pvalue 
 
 			bParam: bool
 				True if parametric p-value generation requested; otherwise, 
@@ -1061,13 +1074,18 @@ class Strudel:
 
 		if self._is_empty( Y ):
 			assert( not self._is_1d( X ) )
-			"print Y is empty"
+			#"print Y is empty"
 			return self.mp( X, lambda x,y: self._association( x,y, strMethod = strMethod, bPval = bPval, bNormalize = bNormalize, 
 				iIter = iIter, strNPMethod = strNPMethod, preset = preset ) )
 
 		elif not self._is_empty( X ) and not self._is_empty( Y ):
 			if not self._is_1d( X ) and not self._is_1d( Y ): 
-				return self._association_many( X, Y, strMethod = strMethod, bPval = bPval, bParam = bParam, bNormalize = bNormalize, iIter = iIter, strNPMethod = strNPMethod )
+				if not("halla" in strMethod):
+					return self._association_many( X, Y, strMethod = strMethod, bPval = bPval, bParam = bParam, bNormalize = bNormalize, iIter = iIter, strNPMethod = strNPMethod )
+				else:
+					#return self._association( X,Y, strMethod = strMethod, bPval = bPval, bParam = bParam, bNormalize = bNormalize, iIter = iIter, strNPMethod = strNPMethod  )
+					aOut = halla.HAllA(X,Y).run()
+					return aOut[0]
 			elif self._is_1d( X ) and self._is_1d( Y ): 
 				return self._association( X, Y, strMethod = strMethod, bPval = bPval, bParam = bParam, bNormalize = bNormalize, iIter = iIter, strNPMethod = strNPMethod )
 	
@@ -1746,7 +1764,7 @@ class Strudel:
 		"""
 		pass 
 
-	def plot_roc( self, fpr, tpr ):
+	def plot_roc( self, fpr, tpr, strTitle = None, astrLabel = [], strFile = None ):
 		"""
 		Plots the roc curve for a given set of false/true positve rates  
 
@@ -1764,20 +1782,49 @@ class Strudel:
 		pPlot: numpy plot object 
 			Pointer to the plot object 
 		"""
-		roc_auc = auc(fpr, tpr) 
+
 		pl = pylab 
-		pl.figure() 
-		pl.plot(fpr, tpr, label='ROC curve (area = %0.2f)' % roc_auc)
+
+		if self._is_meta( fpr ):
+			assert( self._is_meta( tpr ) ) 
+			assert( len(fpr) == len(tpr) )
+
+		elif self._is_1d( fpr ) and self._is_1d( tpr ):
+			assert( len(fpr) == len(tpr) )
+			fpr, tpr = [fpr], [tpr] ##invariance 
+
+		gLabels = itertools.cycle( astrLabel ) if astrLabel else itertools.repeat("")
+
+		## available colors: blue, green, red, cyan, magenta, yellow, black, white 
+		aColors = ["blue", "red", "green", "black", "magenta"]
+		gColors = itertools.cycle( aColors ) ##generator object 
+
+		roc_auc = [auc(f,t) for f,t in zip(fpr,tpr)]
+		
+		pl.figure() ##initialize figure 
+
 		pl.plot([0, 1], [0, 1], 'k--')
 		pl.xlim([0.0, 1.0])
 		pl.ylim([0.0, 1.0])
 		pl.xlabel('False Positive Rate')
 		pl.ylabel('True Positive Rate')
-		pl.title('Receiver operating characteristic')
-		pl.legend(loc="lower right")
-		pl.show()
+		pl.title( strTitle or 'Receiver operating characteristic' )
 
-	def roc( self, true_labels, prob_vec ):
+		for i, fFPR in enumerate( fpr ):
+			strColor = next(gColors)
+			strLabel = next(gLabels)
+			pl.plot(fFPR, tpr[i], c = strColor, label= strLabel + '(ROC = %0.2f)' % roc_auc[i])
+			pl.legend(loc="lower right")
+		
+		if strFile:
+			pl.savefig( strFile )
+			return roc_auc 
+
+		else:
+			pl.show()
+			return roc_auc 
+
+	def roc( self, true_labels, prob_vec, strTitle = None, astrLabel = None, strFile = None ):
 		"""
 		Takes true labels and the probability vectors and calculates the corresponding fpr/tpr; return roc object
 
@@ -1797,148 +1844,15 @@ class Strudel:
 		"""
 		from sklearn.metrics import roc_curve, auc
 
-		fpr, tpr, thresholds = roc_curve( true_labels, prob_vec )
-		roc_auc = sklearn.metrics.auc( fpr, tpr )
-		self.plot_roc( fpr, tpr )
+		if self._is_meta( true_labels ):
+			assert( self._is_meta( prob_vec ) ) 
+			assert( len(true_labels) == len(prob_vec) )
+
+		elif self._is_1d( true_labels ) and self._is_1d( prob_vec ):
+			assert( len(true_labels) == len(prob_vec) )
+			true_labels, prob_vec = [true_labels], [prob_vec] ##invariance 
+
+		aRoc = array([roc_curve( t, p ) for t,p in zip(true_labels, prob_vec)])
+		fpr, tpr, thresholds = aRoc[:,0], aRoc[:,1], aRoc[:,2]
+		roc_auc = self.plot_roc( fpr, tpr, strTitle = strTitle, astrLabel = astrLabel, strFile = strFile )
 		return roc_auc 
-
-
-### OLD CODE 
-"""
-	def __set_definition_preset_random_matrix( self ):
-		
-
-		strPostfixSpike = "_spike"
-		strPrefix = self.prefix_preset_synthetic_data ##doesn't have _ at the end 
-
-		aPresetDefault = [(strPrefix + "_") + strItem for strItem in ["uniform","normal"]]
-		aPresetMixture = [(strPrefix + "_") + strItem for strItem in ["mixture_uniform","mixture_normal"]]
-
-		#if not self.hash_preset:
-		#	self.hash_preset = {"vec": {}, "mat": {}, "pipe": {}}
-
-		for strSpikeMethod in self.list_spike_method:
-			for strPresetMethodDefault in aPresetDefault: ##### Default IID 
-				strFinal = strPresetMethodDefault + "_" + strSpikeMethod + strPostfixSpike
-				#print strFinal
-				#method = strSpikeMethod
-
-				def _pFun_normal_default():
-					self.set_base("normal")
-					self.set_base_param((0,1))
-					return self.generate_spiked_data( spike_method = strSpikeMethod )
-
-				def _pFun_uniform_default():
-					self.set_base("uniform")
-					self.set_base_param((-1,2))
-					return self.generate_spiked_data( spike_method = strSpikeMethod ) 
-
-				pFinal = _pFun_normal_default if "normal" in strPresetMethodDefault else _pFun_uniform_default
-				pAttr = setattr( self, strFinal, pFinal ) 
-
-				self.hash_preset["spiked_data"][strFinal.replace( strPrefix + "_", "" )] = pFinal 
-
-
-				#print getattr( self, strFinal )
-
-			for strPresetMethodMixture in aPresetMixture: ##### For Mixtures
-
-				def _pFun_normal_mixture():
-					aParam = [(0,1),(4,1)]
-					self.set_base(["normal"]*2)
-					self.set_base_param( aParam )
-					return self.generate_spiked_data( spike_method = strSpikeMethod, generation_method = "randmix" ) 
-
-
-				def _pFun_uniform_mixture():
-					aParam = [(-1,2),(-0.5,2)]
-					self.set_base(["uniform"]*2)
-					self.set_base_param( aParam )
-					return self.generate_spiked_data( spike_method = strSpikeMethod, generation_method = "randmix" ) 
-
-				strFinal = strPresetMethodMixture + "_" + strSpikeMethod + strPostfixSpike
-				#print strFinal
-				#method = strSpikeMethod
-				pFinal = _pFun_normal_mixture if "normal" in strPresetMethodMixture else _pFun_uniform_mixture
-				pAttr = setattr( self, strFinal, pFinal ) 
-
-				self.hash_preset["spiked_data"][strFinal.replace( strPrefix + "_", "" )] = pFinal 				
-				#print getattr( self, strFinal )
-"""
-
-"""
-	def __set_definition_preset_spiked_data( self ):
-		hDP = self.hash_distribution_param 
-
-		strPrefix = self.prefix_preset_synthetic_data
-		strPostfixSpike = "_spike"
-		strKeyDefault = "default"
-		strKeyMixture = "mixture"
-
-		def __preset_wrapper( strType, strDist, strSpikeMethod ):
-			
-			pParam = hDP[strType][strDist]
-
-			def __return( _strSpikeMethod, _strGenerationMethod ):
-				return self.generate_spiked_data( spike_method = _strSpikeMethod, generation_method = _strGenerationMethod )
-			
-			if strType == "default":
-				self.set_base(strDist)
-				self.set_base_param(pParam)
-				return __return( strSpikeMethod, "randmat" )
-
-			if strType == "mixture":
-				self.set_base([strDist]*len(pParam))
-				self.set_base_param(pParam)
-				return __return( strSpikeMethod, "randmix" )
-		
-
-		for strSpikeMethod in self.list_spike_method:
-			for strDist, pParam in hDP[strKeyDefault].items():
-				strFinal = strPrefix + "_" + strKeyDefault + "_" + strDist + strPostfixSpike 
-				pFinal = __preset_wrapper( strKeyDefault, strDist, strSpikeMethod )
-				pAttr = setattr( self, strFinal, pFinal ) 
-				self.hash_preset["spiked_data"][strFinal.replace( strPrefix + "_", "" )] = pFinal 
-
-			for strDist, pParam in hDP[strKeyMixture].items():
-				strFinal = strPrefix + "_" + strKeyMixture + "_" + strDist + strPostfixSpike 
-				pFinal =  __preset_wrapper( strKeyMixture, strDist, strSpikeMethod )
-				pAttr = setattr( self, strFinal, pFinal ) 
-				self.hash_preset["spiked_data"][strFinal.replace( strPrefix + "_", "" )] = pFinal 
-	"""
-
-#### IID 
-
-	#def __preset_synthetic_data_uniform( self ):
-	#	self.set_base("uniform")
-	#	self.set_base_param((-1,2))
-	#	return self.randmat( )
-
-	#def __preset_synthetic_data_normal( self ):
-	#	self.set_base("normal")
-	#	self.set_base_param((0,1))
-	#	return self.randmat( )		
-
-	#### MIXTURE 
-
-	#def __preset_synthetic_data_mixture_uniform( self ):
-	#	aParam = [(-1,2),(-0.5,2)]
-	#	self.set_base(["uniform"]*2)
-	#	self.set_base_param( aParam )
-	#	return self.randmix( )
-
-	#def __preset_synthetic_data_mixture_normal( self ):
-	#	aParam = [(0,1),(4,1)]
-	#	self.set_base(["normal"]*2)
-	#	self.set_base_param( aParam )
-	#	return self.randmix( )
-
-	#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
-	# Meta: Random Matrix (With Linkage)
-	#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
-
-	## __preset_synthetic_data_uniform_linear_spike
-	## __preset_synthetic_data_mixture_uniform_linear_spike
-	## __preset_synthetic_data_normal_linear_spike
-	## __preset_synthetic_data_mixture_normal_linear_spike
-	## __preset_synthetic_data_normal_sine_spike
