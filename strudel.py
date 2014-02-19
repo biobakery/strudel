@@ -22,7 +22,6 @@ match up so length is preserved
 	** Parameters passed to distributions or functions should be _tuples_ 
 	** The object enclosing multiple parameters should be _lists_ 
 
-
 * The base distribution is the 0th level distribution; prior distribution is the -1th level distribution in clustered data 
 	** The base distribution is used whenever possible 
 
@@ -45,12 +44,12 @@ To Do
 
 * I need prior distributions to be tuples, as per invariance principle 
 * Make the _check function more arbitrary, not just for checking types, but checking the truth value for other useful features 
-
 * meta _make_invariant should be written to check against bad prior types 
 * Let's not reinvent the wheel; for more complicated Bayesian networks, should look at PyMC and implementations such as bnlearn 
+* Let's absorb HAllA inside the strudel framework -- strudel ver 0.2 
 
-* Make presets for distributions, a la HAllA 
-
+	
+strudel-py/StrudelPy vs. scikit-explore?
 """
 
 ####### Exception handling for optional packages 
