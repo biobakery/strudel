@@ -6,7 +6,6 @@ import multiprocessing
 import argparse
 import subprocess
 
-
 #try:
 #	multiprocessing.Pool
 #	bPP = True 
@@ -20,9 +19,16 @@ c_num_cores = 8
 
 def _main( strFile, iRow, iCol, strMethod, iIter, fSparsity, fNoise, strSpike, strBase, bParam, iPval ):
 
-		strTitle = strMethod + "_" + strBase + "_" + strSpike + "_" + str(iRow) + "x" + str(iCol) + "_" + ("parametric" if bParam else "nonparametric") + "_" + ("pval" if iPval ==1 else "association")
-		strFile = strFile or (strTitle + ".png") 
-	
+	def generate_title( strMethod, strBase, strSpike, iRow, iCol, bParam, iPval, fSparsity, fNoise, iIter ):
+		strTitle = strMethod + "_" + strBase + "_" + strSpike + "_" + \
+			"_s" + str(fSparsity) + "_n" + str(fNoise) + "_i" + str(iIter) + \
+			"_" + str(iRow) + "x" + str(iCol) + "_" + ("parametric" if bParam else "nonparametric") + \
+			"_" + ("pval" if iPval ==1 else "association")
+		return strTitle
+
+	strTitle = generate_title( strMethod, strBase, strSpike, iRow, iCol, bParam, iPval, fSparsity, fNoise, iIter )
+	strFile = strFile or (strTitle + ".png") 
+
 	try:
 		s = strudel.Strudel()
 		s.set_base(strBase)
