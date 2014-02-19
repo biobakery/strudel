@@ -4,6 +4,7 @@ import strudel, halla, numpy
 import sys 
 import multiprocessing 
 import argparse
+import subprocess
 
 
 #try:
@@ -19,47 +20,53 @@ c_num_cores = 8
 
 def _main( strFile, iRow, iCol, strMethod, iIter, fSparsity, fNoise, strSpike, strBase, bParam, iPval ):
 
-	print bParam 
+		strTitle = strMethod + "_" + strBase + "_" + strSpike + "_" + str(iRow) + "x" + str(iCol) + "_" + ("parametric" if bParam else "nonparametric") + "_" + ("pval" if iPval ==1 else "association")
+		strFile = strFile or (strTitle + ".png") 
 	
-	strTitle = strMethod + "_" + strBase + "_" + strSpike + "_" + str(iRow) + "x" + str(iCol) + "_" + ("parametric" if bParam else "nonparametric") + "_" + ("pval" if iPval ==1 else "association")
-	strFile = strFile or (strTitle + ".png") 
+	try:
+		s = strudel.Strudel()
+		s.set_base(strBase)
+		s.set_noise(fNoise)
 
-	s = strudel.Strudel()
-	s.set_base(strBase)
-	s.set_noise(fNoise)
+		##Generate synthetic data 
+		X = s.randmat( shape = (iRow, iCol) )
+		Y,A = s.spike_synthetic_data( X, sparsity = fSparsity, spike_method = strSpike )
 
-	##Generate synthetic data 
-	X = s.randmat( shape = (iRow, iCol) )
-	Y,A = s.spike_synthetic_data( X, sparsity = fSparsity, spike_method = strSpike )
+		##Run iIterations of pipeline 
+		A_emp = [] 
 
-	##Run iIterations of pipeline 
-	A_emp = [] 
+		if bPP:
+			pool = multiprocessing.Pool(processes = iIter )
+			result = pool.map( lambda x: s.association(x[0],x[1],strMethod = x[2]), [[X,Y,"halla"]]*3 )
 
-	if bPP:
-		pool = multiprocessing.Pool(processes = iIter )
-		result = pool.map( lambda x: s.association(x[0],x[1],strMethod = x[2]), [[X,Y,"halla"]]*3 )
+		else:
+			for i in range(iIter):
+			    print "Running iteration " + str(i)
+			    aOut = s.association( X,Y, strMethod = strMethod, bParam = bParam, bPval = iPval )
+			    A_emp.append(aOut)
 
-	else:
-		for i in range(iIter):
-		    print "Running iteration " + str(i)
-		    aOut = s.association( X,Y, strMethod = strMethod, bParam = bParam, bPval = iPval )
-		    A_emp.append(aOut)
+		##Set meta objects 
+		A_emp_flatten = None 
+		if iPval == -1:
+			A_emp_flatten = [numpy.reshape( numpy.abs(a), iRow**2 ) for a in A_emp] 
+		elif iPval == 1:
+			## Remember, associations are _always_ notion of strength, not closeness; this is an invariant I will strictly enforce 
+			A_emp_flatten = [1.0 - numpy.reshape( numpy.abs(a), iRow**2 ) for a in A_emp] 
+		
+		A_flatten = [numpy.reshape( A, iRow**2 ) for _ in range(iIter)]
 
-	##Set meta objects 
-	A_emp_flatten = None 
-	if iPval == -1:
-		A_emp_flatten = [numpy.reshape( numpy.abs(a), iRow**2 ) for a in A_emp] 
-	elif iPval == 1:
-		## Remember, associations are _always_ notion of strength, not closeness; this is an invariant I will strictly enforce 
-		A_emp_flatten = [1.0 - numpy.reshape( numpy.abs(a), iRow**2 ) for a in A_emp] 
-	
-	A_flatten = [numpy.reshape( A, iRow**2 ) for _ in range(iIter)]
+		##Generate roc curves 
+		aROC = s.roc(A_flatten, A_emp_flatten, astrLabel = ["run " + str(i) for i in range(iIter)],
+			strTitle = strTitle, strFile = strFile )
+		
+		print "ROC values:"
+		print aROC 
 
-	##Generate roc curves 
-	aROC = s.roc(A_flatten, A_emp_flatten, astrLabel = ["run " + str(i) for i in range(iIter)],
-		strTitle = strTitle, strFile = strFile )
-	print aROC 
+		return aROC 
 
+	except Exception:
+		return subprocess.call( ["touch",strFile] )
+		
 
 argp = argparse.ArgumentParser( prog = "test_associations.py",
         description = "Test different types of associations in strudel + halla." )
