@@ -286,6 +286,8 @@ class Strudel:
 
 		self.small 				= 0.001
 
+		self.big 				= 10.0
+
 		self.num_iteration 		= 100
 
 		### Set Data 
@@ -1378,7 +1380,7 @@ class Strudel:
 
 	def __spike_half_circle( self, X ):
 		shape = X.shape  
-		return numpy.sqrt( 1-X**2 ) + self.noise_distribution( self.noise_param ).rvs( shape )
+		return numpy.sqrt( 1-X**2 + self.big ) + self.noise_distribution( self.noise_param ).rvs( shape )
 
 	def __spike_parabola( self, X ):
 		shape = X.shape
@@ -1390,7 +1392,7 @@ class Strudel:
 
 	def __spike_log( self, X ):
 		shape = X.shape
-		return numpy.log( 1 + X + self.small ) + self.noise_distribution( self.noise_param ).rvs( shape )
+		return numpy.log( 1 + X + self.big ) + self.noise_distribution( self.noise_param ).rvs( shape )
 
 	def __spike_vee( self, X ):
 		shape = X.shape

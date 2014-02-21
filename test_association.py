@@ -20,10 +20,19 @@ c_num_cores = 8
 def _main( strFile, iRow, iCol, strMethod, iIter, fSparsity, fNoise, strSpike, strBase, bParam, iPval ):
 
 	def generate_title( strMethod, strBase, strSpike, iRow, iCol, bParam, iPval, fSparsity, fNoise, iIter ):
+		
+		strMeta = None 
+		if strMeta == -1:
+			strMeta = "association"
+		elif strMeta == 0:
+			strMeta = "association+pval"
+		else:
+			strMeta = "pval"
+
 		strTitle = strMethod + "_" + strBase + "_" + strSpike + "_" + \
 			"_s" + str(fSparsity) + "_n" + str(fNoise) + "_i" + str(iIter) + \
-			"_" + str(iRow) + "x" + str(iCol) + "_" + ("parametric" if bParam else "nonparametric") + \
-			"_" + ("pval" if iPval ==1 else "association")
+			"_" + str(iRow) + "x" + str(iCol) + "_" + ("parametric" if bParam == True else "nonparametric") + \
+			"_" + strMeta 
 		return strTitle
 
 	strTitle = generate_title( strMethod, strBase, strSpike, iRow, iCol, bParam, iPval, fSparsity, fNoise, iIter )
@@ -47,9 +56,9 @@ def _main( strFile, iRow, iCol, strMethod, iIter, fSparsity, fNoise, strSpike, s
 
 		else:
 			for i in range(iIter):
-			    print "Running iteration " + str(i)
-			    aOut = s.association( X,Y, strMethod = strMethod, bParam = bParam, bPval = iPval )
-			    A_emp.append(aOut)
+				sys.stderr.write("Running iteration " + str(i) + "\n")
+				aOut = s.association( X,Y, strMethod = strMethod, bParam = bParam, bPval = iPval )
+				A_emp.append(aOut)
 
 		##Set meta objects 
 		A_emp_flatten = None 
@@ -65,14 +74,14 @@ def _main( strFile, iRow, iCol, strMethod, iIter, fSparsity, fNoise, strSpike, s
 		aROC = s.roc(A_flatten, A_emp_flatten, astrLabel = ["run " + str(i) for i in range(iIter)],
 			strTitle = strTitle, strFile = strFile )
 		
-		print "ROC values:"
-		print aROC 
+		sys.stderr.write("ROC values: " + "\n")
+		sys.stderr.write("\t".join(aROC) + "\n")
 
 		return aROC 
 
 	except Exception:
 		return subprocess.call( ["touch",strFile] )
-		
+		### Exception handling added for sfle runs 
 
 argp = argparse.ArgumentParser( prog = "test_associations.py",
         description = "Test different types of associations in strudel + halla." )
