@@ -1,11 +1,13 @@
 #!/usr/bin/env python 
 
+import matplotlib 
+matplotlib.use("Agg")
 import strudel, halla, numpy 
 import sys 
 import multiprocessing 
 import argparse
 import subprocess
-
+			
 #try:
 #	multiprocessing.Pool
 #	bPP = True 
@@ -75,11 +77,12 @@ def _main( strFile, iRow, iCol, strMethod, iIter, fSparsity, fNoise, strSpike, s
 			strTitle = strTitle, strFile = strFile )
 		
 		sys.stderr.write("ROC values: " + "\n")
-		sys.stderr.write("\t".join(aROC) + "\n")
+		sys.stderr.write("\t".join(map(str,aROC)) + "\n")
 
 		return aROC 
 
 	except Exception:
+		sys.stderr.write("ERROR!\n")
 		return subprocess.call( ["touch",strFile] )
 		### Exception handling added for sfle runs 
 

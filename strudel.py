@@ -66,7 +66,6 @@ import scipy
 import numpy 
 from numpy import array 
 import sklearn
-import pylab 
 import csv 
 import sys 
 import itertools 
@@ -77,7 +76,7 @@ from numpy.random import normal, multinomial, dirichlet
 from sklearn.metrics import roc_curve, auc 
 
 ####### namespace for plotting 
-from pylab import hist, plot, figure, scatter
+#from pylab import hist, plot, figure, scatter
 
 class Strudel:
 	### Avoid lazy evaluation when possible, to avoid depency problems 
@@ -1812,6 +1811,7 @@ class Strudel:
 			Pointer to the plot object 
 		"""
 
+		import pylab 
 		pl = pylab 
 
 		if self._is_meta( fpr ):
@@ -1871,6 +1871,7 @@ class Strudel:
 		roc_auc: float
 			AUC value 
 		"""
+
 		from sklearn.metrics import roc_curve, auc
 
 		if self._is_meta( true_labels ):
