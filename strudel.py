@@ -972,6 +972,7 @@ class Strudel:
 					aBootX, aBootY = X[aDraw], Y[aDraw]
 					return __invariance( pAssociation( aBootX, aBootY ) )
 				
+				#sys.stderr.write("Generating " + str(iIter) + " bootstraps ...\n")
 				aDist = [__sample( X, Y, pAssociation, iIter ) for _ in range(iIter)]
 				
 				fAssociation = __invariance( pAssociation( X, Y ) )
@@ -989,8 +990,10 @@ class Strudel:
 					return __invariance( pAssociation( aPermX, Y ) )
 					
 				fAssociation = __invariance( pAssociation( X,Y ) )
+				#sys.stderr.write( "Generating " + str(iIter) + " permuations ...\n" )
 				aDist = [__permute(X,Y, pAssociation=pAssociation) for _ in range(iIter)] ##array containing finite estimation of sampling distribution 
 				
+
 				fP = 1.0 - scipy.stats.percentileofscore( aDist, fAssociation )/100.0 
 				return fAssociation, fP 
 
@@ -1007,6 +1010,7 @@ class Strudel:
 			return pMethod( X, Y, pAssociation, iIter = iIter )
 
 		if bParam:
+			#sys.stderr.write("Parametric pval generation\n")
 			assert( self.hash_association_parametric[strMethod] ), "Parametric error bar generation does not exist for the %s method" %strMethod
 			aOut = pMethod(X,Y)
 			
@@ -1018,7 +1022,9 @@ class Strudel:
 				return aOut[1]
 
 		else:
+			#sys.stderr.write("Nonparametric pval generation\n")
 			if bPval == -1:
+				sys.stderr.write("Nonparametric association\n")
 				aOut = pMethod(X,Y)				
 				## BUGBUG: define general association/distance objects so that this can be avoided
 				## Currently, there is a need to wrap around different association definition 
@@ -1027,6 +1033,7 @@ class Strudel:
 			elif bPval == 0:
 				return _np_error_bars( X, Y, pAssociation = pMethod, iIter = iIter, strMethod = strNPMethod )
 			elif bPval == 1:
+				#sys.stderr.write("Nonparametric pval\n")
 				return _np_error_bars( X, Y, pAssociation = pMethod, iIter = iIter, strMethod = strNPMethod )[1]
 				
 

@@ -19,26 +19,26 @@ bPP = False
 ##global parameters 
 c_num_cores = 8 
 
+def generate_title( strMethod, strBase, strSpike, iRow, iCol, bParam, iPval, fSparsity, fNoise, iIter ):
+	
+	strMeta = None 
+	if iPval == -1:
+		strMeta = "association"
+	elif iPval == 0:
+		strMeta = "association+pval"
+	else:
+		strMeta = "pval"
+
+	strDelim = "_"
+	strTitle = strDelim.join( [strMethod, strBase, strSpike, "s"+str(fSparsity), "n"+str(fNoise), "i"+str(iIter), str(iRow)+"x"+str(iCol), ("parametric" if bParam == True else "nonparametric"), strMeta])
+
+	return strTitle
+
 def _main( strFile, iRow, iCol, strMethod, iIter, fSparsity, fNoise, strSpike, strBase, bParam, iPval ):
-
-	def generate_title( strMethod, strBase, strSpike, iRow, iCol, bParam, iPval, fSparsity, fNoise, iIter ):
-		
-		strMeta = None 
-		if strMeta == -1:
-			strMeta = "association"
-		elif strMeta == 0:
-			strMeta = "association+pval"
-		else:
-			strMeta = "pval"
-
-		strTitle = strMethod + "_" + strBase + "_" + strSpike + "_" + \
-			"_s" + str(fSparsity) + "_n" + str(fNoise) + "_i" + str(iIter) + \
-			"_" + str(iRow) + "x" + str(iCol) + "_" + ("parametric" if bParam == True else "nonparametric") + \
-			"_" + strMeta 
-		return strTitle
 
 	strTitle = generate_title( strMethod, strBase, strSpike, iRow, iCol, bParam, iPval, fSparsity, fNoise, iIter )
 	strFile = strFile or (strTitle + ".png") 
+
 
 	try:
 		s = strudel.Strudel()
@@ -86,58 +86,60 @@ def _main( strFile, iRow, iCol, strMethod, iIter, fSparsity, fNoise, strSpike, s
 		return subprocess.call( ["touch",strFile] )
 		### Exception handling added for sfle runs 
 
-argp = argparse.ArgumentParser( prog = "test_associations.py",
-        description = "Test different types of associations in strudel + halla." )
+if __name__ == "__main__":
 
-### BUGBUG: can we run on real files?  
-#argp.add_argument( "istm",              metavar = "input.txt",
-#        type = argparse.FileType( "r" ),        default = sys.stdin,    nargs = "+",
-#        help = "Tab-delimited text input file, one row per feature, one column per measurement" )
+	argp = argparse.ArgumentParser( prog = "test_associations.py",
+	        description = "Test different types of associations in strudel + halla." )
 
-argp.add_argument( "-o",                dest = "strFile",                  metavar = "output_plot",
-       type = str,        default = None,
-        help = "Optional output file name for script-generated plot" )
+	### BUGBUG: can we run on real files?  
+	#argp.add_argument( "istm",              metavar = "input.txt",
+	#        type = argparse.FileType( "r" ),        default = sys.stdin,    nargs = "+",
+	#        help = "Tab-delimited text input file, one row per feature, one column per measurement" )
 
-argp.add_argument( "-m",                dest = "strMethod",             metavar = "method_name",
-        type = str,   default = "pearson",
-        help = "Association method. [pearson, spearman, mi, norm_mi, kw, x2, halla]" )
+	argp.add_argument( "-o",                dest = "strFile",                  metavar = "output_plot",
+	       type = str,        default = None,
+	        help = "Optional output file name for script-generated plot" )
 
-argp.add_argument( "--row",                dest = "iRow",             metavar = "num_rows",
-        type = int,   default = "20",
-        help = "Number of rows" )
+	argp.add_argument( "-m",                dest = "strMethod",             metavar = "method_name",
+	        type = str,   default = "pearson",
+	        help = "Association method. [pearson, spearman, mi, norm_mi, kw, x2, halla]" )
 
-argp.add_argument( "--col",                dest = "iCol",             metavar = "num_cols",
-        type = int,   default = "20",
-        help = "Number of columns" )
+	argp.add_argument( "--row",                dest = "iRow",             metavar = "num_rows",
+	        type = int,   default = "20",
+	        help = "Number of rows" )
 
-argp.add_argument( "--parametric",                dest = "bParam",
-        action = "store_true",
-        help = "Parametric pvalue generation? else permutation based error bar generation. The only ones with parametric error bars are pearson, spearman, x2" )
+	argp.add_argument( "--col",                dest = "iCol",             metavar = "num_cols",
+	        type = int,   default = "20",
+	        help = "Number of columns" )
 
-argp.add_argument( "-i",                dest = "iIter",             metavar = "num_iteration",
-        type = int,   default = "3",
-        help = "Number of iterations for each association method" )
+	argp.add_argument( "--parametric",                dest = "bParam",
+	        action = "store_true",
+	        help = "Parametric pvalue generation? else permutation based error bar generation. The only ones with parametric error bars are pearson, spearman, x2" )
 
-argp.add_argument( "-s",                dest = "fSparsity",             metavar = "sparsity",
-        type = float,   default = "0.5",
-        help = "Sparsity parameter, value in [0.0,1.0]" )
+	argp.add_argument( "-i",                dest = "iIter",             metavar = "num_iteration",
+	        type = int,   default = "3",
+	        help = "Number of iterations for each association method" )
 
-argp.add_argument( "-n",                dest = "fNoise",             metavar = "noise",
-        type = float,   default = "0.1",
-        help = "Noise parameter, value in [0.0,1.0]" )
+	argp.add_argument( "-s",                dest = "fSparsity",             metavar = "sparsity",
+	        type = float,   default = "0.5",
+	        help = "Sparsity parameter, value in [0.0,1.0]" )
 
-argp.add_argument( "--spike_method",                dest = "strSpike",             metavar = "spike_method",
-        type = str,   default = "parabola",
-        help = "Spike method: [linear, vee, sine, parabola, cubic, log, half_circle]" )
+	argp.add_argument( "-n",                dest = "fNoise",             metavar = "noise",
+	        type = float,   default = "0.1",
+	        help = "Noise parameter, value in [0.0,1.0]" )
 
-argp.add_argument( "-b",                dest = "strBase",             metavar = "base_distribution",
-        type = str,   default = "normal",
-        help = "Base distribution: [normal, uniform]" )
+	argp.add_argument( "--spike_method",                dest = "strSpike",             metavar = "spike_method",
+	        type = str,   default = "parabola",
+	        help = "Spike method: [linear, vee, sine, parabola, cubic, log, half_circle]" )
 
-argp.add_argument( "-p",                dest = "iPval",             metavar = "use_pval",
-        type = int,   default = -1,
-        help = "Parameter to request for association values or p-values. -1 -> only association value, 0 -> both association and p-value (do not use for now), 1 -> only p-value" )
+	argp.add_argument( "-b",                dest = "strBase",             metavar = "base_distribution",
+	        type = str,   default = "normal",
+	        help = "Base distribution: [normal, uniform]" )
+
+	argp.add_argument( "-p",                dest = "iPval",             metavar = "use_pval",
+	        type = int,   default = 1,
+	        help = "Parameter to request for association values or p-values. -1 -> only association value, 0 -> both association and p-value (do not use for now), 1 -> only p-value" )
 
 
-args = argp.parse_args( ) 
-_main( args.strFile, args.iRow, args.iCol, args.strMethod, args.iIter, args.fSparsity, args.fNoise, args.strSpike, args.strBase, args.bParam, args.iPval )
+	args = argp.parse_args( ) 
+	_main( args.strFile, args.iRow, args.iCol, args.strMethod, args.iIter, args.fSparsity, args.fNoise, args.strSpike, args.strBase, args.bParam, args.iPval )
