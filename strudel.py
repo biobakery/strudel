@@ -276,6 +276,8 @@ class Strudel:
 
 		self.permutation_noise_param = 0.1 # a value between [0,1]; controls amount of noise induced in linkages by permutation 
 
+		self.permutation_noise_deg = 10 # degree of accuracy of the permutation noise parameter 
+
 		### Sparsity 
 
 		self.sparsity_param		= 0.5 # a value between [0,1]; 0 means completely sparse; 1 means completely dense 
@@ -417,6 +419,59 @@ class Strudel:
 			pArray = pArray.T
 
 		return numpy.random.permutation( pArray )
+
+	def pp( self, pArray, iIter = 1, axis = 0 ):
+		"""
+		Permute a random pair within the array along given axis 
+		"""
+
+		if bool(axis):
+			pArray = pArray.T
+
+		iLen = len(pArray)
+
+		def _draw_two( ):
+			aOut = [] 
+			for _ in range(2):
+				aOut.append( self._categorical( [1.0/iLen]*iLen ) ) 
+				## Sometimes you can pick the same two; but this probability becomes O(n^-2) small
+			return aOut 
+
+		def _shift( _pArray, iOne, iTwo ):
+			_pArray[iTwo], _pArray[iOne] =  _pArray[iOne], _pArray[iTwo] 
+			return _pArray 
+
+		for _ in range(iIter): 
+			iOne, iTwo = _draw_two( )
+			pArray = _shift( pArray, iOne, iTwo )
+
+		return pArray
+
+
+	def pn( self, pArray, fNoise = 0.1, axis = 0 ):
+		"""
+		Induce permutation noise 
+		"""
+
+		if bool(axis):
+			pArray = pArray.T
+
+		if not fNoise:
+			fNoise = self.permutation_noise_param 
+
+		assert( 0.0 <= fNoise <= 1.0 )
+
+		if fNoise == 0.0:
+			return pArray 
+
+		else:
+			iLen = len(pArray)
+			iSizeEff = iLen/2  ## effective size 
+			aInterval = self.partition_of_unity( iSize = iSizeEff )
+			iIter = self.indicator(array([fNoise]), aInterval)[0] ##how many times?
+
+			pArrayNew = self.pp( pArray = pArray, iIter = iIter )
+			return pArrayNew
 
 	#========================================#
 	# Presets 
@@ -1378,31 +1433,38 @@ class Strudel:
 
 	def __spike_linear( self, X ):
 		shape = X.shape  
-		return X + self.noise_distribution( self.noise_param ).rvs( shape )
+		aOut = X + self.noise_distribution( self.noise_param ).rvs( shape )
+		return self.pn( aOut, self.permutation_noise_param )
 
 	def __spike_sine( self, X ):
 		shape = X.shape 
-		return numpy.sin( X*numpy.pi ) + self.noise_distribution( self.noise_param ).rvs( shape )
+		aOut = numpy.sin( X*numpy.pi ) + self.noise_distribution( self.noise_param ).rvs( shape )
+		return self.pn( aOut, self.permutation_noise_param )
 
 	def __spike_half_circle( self, X ):
 		shape = X.shape  
-		return numpy.sqrt( 1-X**2 + self.big ) + self.noise_distribution( self.noise_param ).rvs( shape )
+		aOut = numpy.sqrt( 1-X**2 + self.big ) + self.noise_distribution( self.noise_param ).rvs( shape )
+		return self.pn( aOut, self.permutation_noise_param )
 
 	def __spike_parabola( self, X ):
 		shape = X.shape
-		return X**2 + self.noise_distribution( self.noise_param ).rvs( shape )
+		aOut = X**2 + self.noise_distribution( self.noise_param ).rvs( shape )
+		return self.pn( aOut, self.permutation_noise_param )
 
 	def __spike_cubic( self, X ):
 		shape = X.shape
-		return X**3 + self.noise_distribution( self.noise_param ).rvs( shape )
+		aOut = X**3 + self.noise_distribution( self.noise_param ).rvs( shape )
+		return self.pn( aOut, self.permutation_noise_param )
 
 	def __spike_log( self, X ):
 		shape = X.shape
-		return numpy.log( 1 + X + self.big ) + self.noise_distribution( self.noise_param ).rvs( shape )
+		aOut = numpy.log( 1 + X + self.big ) + self.noise_distribution( self.noise_param ).rvs( shape )
+		return self.pn( aOut, self.permutation_noise_param )
 
 	def __spike_vee( self, X ):
 		shape = X.shape
-		return numpy.sqrt( X**2 ) + self.noise_distribution( self.noise_param ).rvs( shape )
+		aOut = numpy.sqrt( X**2 ) + self.noise_distribution( self.noise_param ).rvs( shape )
+		return self.pn( aOut, self.permutation_noise_param )
 
 	#==============================================================================#
 	# Parametricized shapes under uniform base distribution 
@@ -1694,27 +1756,45 @@ class Strudel:
 	# Linkage helper functions   
 	#=============================================================#
 
-	def partition_of_unity( self, iSize = 2 ):
+	def partition( self, fStart, fEnd, iSize ):
 		iSize+=1 
-		aLin = numpy.linspace(0,1,iSize)
+		aLin = numpy.linspace(fStart,fEnd,iSize)
 		aInd = zip(range(iSize-1),range(1,iSize+1))
 		return [(aLin[i],aLin[j]) for i,j in aInd]
-	
+
+	def partition_of_unity( self, iSize = 2 ):
+		return self.partition( 0, 1, iSize = iSize )
 
 	def indicator( self, pArray, pInterval ):
 
 		aOut = [] 
 
 		for i,value in enumerate( pArray ):
-			aOut.append( ([ z for z in itertools.compress( range(len(pInterval)), map( lambda x: x[0] <= value < x[1], pInterval ) ) ] or [0] )[0] ) 
+			aOut.append( ([ z for z in itertools.compress( range(len(pInterval)), map( lambda x: x[0] <= value <= x[1], pInterval ) ) ] or [0] )[0] ) 
+			## <= on both directions, since I am taking out the first element anyways 
 
 		return aOut
 
 	def classify( self, pArray, method = "logistic", iClass = 2 ):
+		"""
+		Classify to discrete bins using cdf of standard distributions 
+
+		method: str 
+			logistic, beta 
+		"""
+
+		hashMethod = {"logistic": logistic.cdf,
+						"beta": lambda x: beta.cdf(x,2,2)} 
 		
+		pMethod = hashMethod["logistic"]
+
+		if method:
+			pMethod = hashMethod[method] 
+
+
 		aInterval = self.partition_of_unity( iSize = iClass )
 
-		return self.indicator( logistic.cdf( pArray ), aInterval )
+		return self.indicator( pMethod( pArray ), aInterval )
 
 	def generate_linkage( self, num_children = 2, shape = None, iClass = 5, method = "randmat" ):
 		"""
