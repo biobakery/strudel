@@ -274,7 +274,7 @@ class Strudel:
 
 		### Permutation Noise 
 
-		self.permutation_noise_param = 0.1 # a value between [0,1]; controls amount of noise induced in linkages by permutation 
+		self.permutation_noise_param = 0.0 # a value between [0,1]; controls amount of noise induced in linkages by permutation 
 
 		self.permutation_noise_deg = 10 # degree of accuracy of the permutation noise parameter 
 
