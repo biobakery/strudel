@@ -203,7 +203,19 @@ class Strudel:
 										"halla": lambda X,Y: halla.HAllA(X,Y).run( ),
 										}
 
-		hash_association_parametric = {"pearson": True,
+		self.hash_association_method_discretize = {"pearson": False,
+										"spearman": False,
+										"kw": False,
+										"anova": False,
+										"x2": False,
+										"fisher": False,
+										"norm_mi": True,
+										"mi": True,
+										"norm_mid": True,
+										"halla": False
+										}
+
+		self.hash_association_parametric = {"pearson": True,
 										"spearman": True,
 										"anova": True,
 										} 
@@ -992,6 +1004,8 @@ class Strudel:
 
 		pMethod = self.hash_association_method[strMethod]
 
+		bDiscretize = self.hash_association_method_discretize[strMethod]
+
 		if bDiscretize:
 			X,Y = halla.discretize( X ), halla.discretize( Y )
 
@@ -1079,7 +1093,7 @@ class Strudel:
 		else:
 			#sys.stderr.write("Nonparametric pval generation\n")
 			if bPval == -1:
-				sys.stderr.write("Nonparametric association\n")
+				#sys.stderr.write("Nonparametric association\n")
 				aOut = pMethod(X,Y)				
 				## BUGBUG: define general association/distance objects so that this can be avoided
 				## Currently, there is a need to wrap around different association definition 

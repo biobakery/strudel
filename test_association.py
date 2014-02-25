@@ -19,7 +19,7 @@ bPP = False
 ##global parameters 
 c_num_cores = 8 
 
-def generate_title( strMethod, strBase, strSpike, iRow, iCol, bParam, iPval, fSparsity, fNoise, iIter ):
+def generate_title( strMethod, strBase, strSpike, iRow, iCol, bParam, iPval, fSparsity, fNoise, iIter, fPermutationNoise ):
 	
 	strMeta = None 
 	if iPval == -1:
@@ -30,13 +30,13 @@ def generate_title( strMethod, strBase, strSpike, iRow, iCol, bParam, iPval, fSp
 		strMeta = "pval"
 
 	strDelim = "_"
-	strTitle = strDelim.join( [strMethod, strBase, strSpike, "s"+str(fSparsity), "n"+str(fNoise), "i"+str(iIter), str(iRow)+"x"+str(iCol), ("parametric" if bParam == True else "nonparametric"), strMeta])
+	strTitle = strDelim.join( [strMethod, strBase, strSpike, "s"+str(fSparsity), "n"+str(fNoise), "pn" + str(fPermutationNoise), "i"+str(iIter), str(iRow)+"x"+str(iCol), ("parametric" if bParam == True else "nonparametric"), strMeta])
 
 	return strTitle
 
-def _main( strFile, iRow, iCol, strMethod, iIter, fSparsity, fNoise, strSpike, strBase, bParam, iPval ):
+def _main( strFile, iRow, iCol, strMethod, iIter, fSparsity, fNoise, strSpike, strBase, bParam, iPval, fPermutationNoise ):
 
-	strTitle = generate_title( strMethod, strBase, strSpike, iRow, iCol, bParam, iPval, fSparsity, fNoise, iIter )
+	strTitle = generate_title( strMethod, strBase, strSpike, iRow, iCol, bParam, iPval, fSparsity, fNoise, iIter, fPermutationNoise )
 	strFile = strFile or (strTitle + ".png") 
 
 
@@ -128,6 +128,10 @@ if __name__ == "__main__":
 	        type = float,   default = "0.1",
 	        help = "Noise parameter, value in [0.0,1.0]" )
 
+	argp.add_argument( "--permutation_noise",                dest = "fPermutationNoise",             metavar = "permutation_noise",
+	        type = float,   default = "0.1",
+	        help = "Permutation noise parameter, value in [0.0,1.0]" )
+
 	argp.add_argument( "--spike_method",                dest = "strSpike",             metavar = "spike_method",
 	        type = str,   default = "parabola",
 	        help = "Spike method: [linear, vee, sine, parabola, cubic, log, half_circle]" )
@@ -142,4 +146,4 @@ if __name__ == "__main__":
 
 
 	args = argp.parse_args( ) 
-	_main( args.strFile, args.iRow, args.iCol, args.strMethod, args.iIter, args.fSparsity, args.fNoise, args.strSpike, args.strBase, args.bParam, args.iPval )
+	_main( args.strFile, args.iRow, args.iCol, args.strMethod, args.iIter, args.fSparsity, args.fNoise, args.strSpike, args.strBase, args.bParam, args.iPval, args.fPermutationNoise )
