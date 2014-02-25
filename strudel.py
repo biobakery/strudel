@@ -150,6 +150,7 @@ class Strudel:
 
 		self.prefix_prest 		= "__preset"
 
+		## "line" is used as a noun; "linear" is used as an adjective with respect to the distribution 
 
 		self.hash_distribution	= { "uniform"	: uniform, #This distribution is constant between loc and loc + scale.
 									"normal"	: norm, 
@@ -178,14 +179,25 @@ class Strudel:
 
 		self.hash_distribution_param = {"default":self.hash_distribution_param_default,"mixture": self.hash_distribution_param_mixture}
 
-		self.hash_spike_method = {"linear"			: self.__spike_linear,
+		self.hash_spike_method = {	"line"			: self.__spike_line,
 									"sine"			: self.__spike_sine,
 									"half_circle" 	: self.__spike_half_circle,
+									"circle"		: self.__spike_circle, 
 									"parabola"		: self.__spike_parabola,
 									"cubic"			: self.__spike_cubic,
 									"log"			: self.__spike_log,
-									"vee"			: self.__spike_vee,	}
-		
+									"vee"			: self.__spike_vee,
+									"ellipse"		: self.__spike_ellipse, 
+									"line_line"		: self.__spike_line_line,
+									"x"				: self.__spike_x,
+									"line_parabola"	: self.__spike_line_parabola,
+									"non-coexistence": self.__spike_non_coexistence,
+									}
+
+
+		## Reshef Types: Two Lines, Line and parabola, X, ellipse, sinusoid, non-coexistence 
+		## Reshef Types: Random, Linear, Cubic, Exponential, Sinusoidal, Categorical, Periodic/Linear, Parabolic
+		## Tibshirani Types 
 
 		## Common statistical functions: 
 		## http://docs.scipy.org/doc/scipy/reference/stats.html
@@ -297,11 +309,16 @@ class Strudel:
 
 		### Auxillary 
 
-		self.small 				= 0.001
+		self.small 				= 0.000
 
 		self.big 				= 10.0
 
 		self.num_iteration 		= 100
+
+		### P values and Thresholds 
+		self.p 					= 0.05
+		self.q 					= 0.05
+		self.threshold 			= 0.05
 
 		### Set Data 
 
@@ -349,7 +366,7 @@ class Strudel:
 		if bool(axis): 
 			pArray = pArray.T
 			# Set the axis as per numpy convention 
-		if isinstance( pFunc ,np.ndarray ):
+		if isinstance( pFunc , numpy.ndarray ):
 			return pArray[pFunc]
 		else: #generic function type
 			return array( [pFunc(item) for item in pArray] ) 
@@ -367,6 +384,24 @@ class Strudel:
 
 		return array([pFunc(pArray[i],pArray[j]) for i,j in pIndices])
 
+	def md( self, pArray1, pArray2, pFunc, axis = 0 ):
+		"""
+		Map _by dot product_
+		"""
+
+		if bool(axis): 
+			pArray1, pArray2 = pArray1.T, pArray2.T
+
+		iRow1 = len(pArray1)
+		iRow2 = len(pArray2)
+
+
+		assert( iRow1 == iRow2 )
+		aOut = [] 
+		for i,item in enumerate(pArray1):
+			aOut.append( pFunc(item, pArray2[i]) )
+		return aOut 
+
 	#@staticmethod 
 	def mc( self, pArray1, pArray2, pFunc, axis = 0, bExpand = False ):
 		"""
@@ -378,10 +413,13 @@ class Strudel:
 		if bool(axis): 
 			pArray1, pArray2 = pArray1.T, pArray2.T
 
-		iRow1, iCol1 = pArray1.shape
-		iRow2, iCol2 = pArray2.shape 
+		#iRow1, iCol1 = pArray1.shape
+		#iRow2, iCol2 = pArray2.shape 
 
-		pIndices = itertools.product( range(pArray1.shape[0]), range(pArray2.shape[0]) )
+		iRow1 = len(pArray1)
+		iRow2 = len(pArray2)
+
+		pIndices = itertools.product( range(iRow1), range(iRow2) )
 
 		aOut = array([pFunc(pArray1[i],pArray2[j]) for i,j in pIndices])
 		return ( aOut if not bExpand else numpy.reshape( aOut, (iRow1, iRow2) ) )
@@ -484,6 +522,13 @@ class Strudel:
 
 			pArrayNew = self.pp( pArray = pArray, iIter = iIter )
 			return pArrayNew
+
+	def interleave( self, pArray1, pArray2, axis = 0 ):
+		a,b = pArray1, pArray2
+		c = numpy.empty((a.size + b.size,), dtype=a.dtype)
+		c[0::2] = a
+		c[1::2] = b
+		return c 
 
 	#========================================#
 	# Presets 
@@ -925,6 +970,10 @@ class Strudel:
 		self.num_iteration = iIter 
 		return self.num_iteration 
 
+	def set_permutation_noise( self, fPermutationNoise ):
+		self.permutation_noise_param = fPermutationNoise
+		return self.permutation_noise_param
+
 	def set_base_param( self, param ):
 		param = self._make_invariant( param, self._len( self.base ) ) 
 		self.base_param = param 
@@ -1124,7 +1173,7 @@ class Strudel:
 			return aAssoc_adjusted 
 
 			
-	def association( self, X, Y = None, strMethod = "pearson", bPval = False, bParam = False, 
+	def association( self, X, Y = None, strMethod = "pearson", bPval = -1, bParam = False, 
 		bNormalize = False, iIter = None, strNPMethod = "permutation", strReduceMethod = None, 
 		strCorrectionMethod = None, preset = None ):
 		"""
@@ -1403,7 +1452,7 @@ class Strudel:
 	# Spike functions 
 	#=============================================================#
 
-	def spike( self, X, strMethod = "linear", sparsity = 1.0, bAdjacency = False, aArgs = [] ):
+	def spike( self, X, strMethod = "line", sparsity = 1.0, bAdjacency = False, aArgs = [] ):
 		"""
 		Introduce spikes between variables. 
 
@@ -1445,7 +1494,7 @@ class Strudel:
 			A = numpy.diag( abSpike )
 			return aOut if not bAdjacency else aOut, A 
 
-	def __spike_linear( self, X ):
+	def __spike_line( self, X ):
 		shape = X.shape  
 		aOut = X + self.noise_distribution( self.noise_param ).rvs( shape )
 		return self.pn( aOut, self.permutation_noise_param )
@@ -1457,7 +1506,16 @@ class Strudel:
 
 	def __spike_half_circle( self, X ):
 		shape = X.shape  
-		aOut = numpy.sqrt( 1-X**2 + self.big ) + self.noise_distribution( self.noise_param ).rvs( shape )
+		aOut = numpy.sqrt( 1-X**2 + self.small ) + self.noise_distribution( self.noise_param ).rvs( shape )
+		return self.pn( aOut, self.permutation_noise_param )
+
+	def __spike_circle( self, X ):
+		shape = len(X)
+		aIndices1 = array(range(0,shape,2))
+		aIndices2 = 1+aIndices1
+		aOut1 = (numpy.sqrt( 1-X[aIndices1]**2 + self.small ) + self.noise_distribution( self.noise_param ).rvs( len(aIndices1) ))
+		aOut2 = -1*(numpy.sqrt( 1-X[aIndices2]**2 + self.small ) + self.noise_distribution( self.noise_param ).rvs( len(aIndices2) ))
+		aOut = self.interleave( aOut1, aOut2 )
 		return self.pn( aOut, self.permutation_noise_param )
 
 	def __spike_parabola( self, X ):
@@ -1479,6 +1537,34 @@ class Strudel:
 		shape = X.shape
 		aOut = numpy.sqrt( X**2 ) + self.noise_distribution( self.noise_param ).rvs( shape )
 		return self.pn( aOut, self.permutation_noise_param )
+
+	def __spike_ellipse( self, X ):
+		shape = len(X)
+		aIndices1 = array(range(0,shape,2))
+		aIndices2 = 1+aIndices1
+		aOut1 = (numpy.sqrt( 1-0.5*X[aIndices1]**2 + self.small ) + self.noise_distribution( self.noise_param ).rvs( len(aIndices1) ))
+		aOut2 = -1*(numpy.sqrt( 1-0.5*X[aIndices2]**2 + self.small ) + self.noise_distribution( self.noise_param ).rvs( len(aIndices2) ))
+		aOut = self.interleave( aOut1, aOut2 )
+		return self.pn( aOut, self.permutation_noise_param )
+					
+	def __spike_line_line( self, X ):
+		shape = len(X)
+		aIndices1 = array(range(0,shape,2))
+		aIndices2 = 1+aIndices1
+		return self.interleave( self.hash_spike_method["line"](X[aIndices1]), -1*self.hash_spike_method["line"](X[aIndices2]) )
+
+	def __spike_x( self, X ):
+		return self.hash_spike_method["line_line"]( X )
+
+	def __spike_line_parabola( self, X):
+		shape = len(X)
+		aIndices1 = array(range(0,shape,2))
+		aIndices2 = 1+aIndices1
+		return self.interleave( self.hash_spike_method["line"](X[aIndices1]), self.hash_spike_method["parabola"](X[aIndices2]) )
+
+	def __spike_non_coexistence( self, X ):
+		pass 
+
 
 	#==============================================================================#
 	# Parametricized shapes under uniform base distribution 
@@ -1789,6 +1875,9 @@ class Strudel:
 
 		return aOut
 
+	def threshold( self, pArray, fValue ):
+		return self.m( pArray, lambda x: int(x <= fValue) )
+
 	def classify( self, pArray, method = "logistic", iClass = 2 ):
 		"""
 		Classify to discrete bins using cdf of standard distributions 
@@ -1987,3 +2076,11 @@ class Strudel:
 		fpr, tpr, thresholds = aRoc[:,0], aRoc[:,1], aRoc[:,2]
 		roc_auc = self.plot_roc( fpr, tpr, strTitle = strTitle, astrLabel = astrLabel, strFile = strFile )
 		return roc_auc 
+
+	def accuracy( self, true_labels, emp_labels ):
+		assert( len(true_labels) == len(emp_labels) )
+		iLen = len(true_labels)
+		return self.md( true_labels, emp_labels, lambda x,y: int(x==y) )/float(iLen)
+
+	def accuracy_with_threshold( self, true_labels, prob_vec, fThreshold = 0.05 ):
+		return self.accuracy( true_labels, self.threshold( prob_vec, fThreshold ) )
