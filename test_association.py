@@ -37,7 +37,7 @@ def generate_title( strMethod, strBase, strSpike, iRow, iCol, bParam, iPval, fSp
 def _main( strFile, iRow, iCol, strMethod, iIter, fSparsity, fNoise, strSpike, strBase, bParam, iPval, fPermutationNoise, bException ):
 
 	strTitle = generate_title( strMethod, strBase, strSpike, iRow, iCol, bParam, iPval, fSparsity, fNoise, iIter, fPermutationNoise )
-	strFile = strFile or (strTitle + ".png") 
+	strFile = strFile or (strTitle + ".pdf") 
 
 	def __main( ):
 		s = strudel.Strudel()
