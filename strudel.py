@@ -48,6 +48,8 @@ To Do
 * Let's not reinvent the wheel; for more complicated Bayesian networks, should look at PyMC and implementations such as bnlearn 
 * Let's absorb HAllA inside the strudel framework -- strudel ver 0.2 
 
+* Add ability to measure time spent in the `association` function 
+* Parallelizability 
 	
 strudel-py/StrudelPy vs. scikit-explore?
 """
@@ -318,7 +320,6 @@ class Strudel:
 		### P values and Thresholds 
 		self.p 					= 0.05
 		self.q 					= 0.05
-		self.threshold 			= 0.05
 
 		### Set Data 
 
@@ -2080,7 +2081,9 @@ class Strudel:
 	def accuracy( self, true_labels, emp_labels ):
 		assert( len(true_labels) == len(emp_labels) )
 		iLen = len(true_labels)
-		return self.md( true_labels, emp_labels, lambda x,y: int(x==y) )/float(iLen)
+		return sum( self.md( true_labels, emp_labels, lambda x,y: int(x==y) ) )*(1/float(iLen))
 
 	def accuracy_with_threshold( self, true_labels, prob_vec, fThreshold = 0.05 ):
+		if not fThreshold:
+			fThreshold = self.q 
 		return self.accuracy( true_labels, self.threshold( prob_vec, fThreshold ) )

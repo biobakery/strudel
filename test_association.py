@@ -34,13 +34,12 @@ def generate_title( strMethod, strBase, strSpike, iRow, iCol, bParam, iPval, fSp
 
 	return strTitle
 
-def _main( strFile, iRow, iCol, strMethod, iIter, fSparsity, fNoise, strSpike, strBase, bParam, iPval, fPermutationNoise ):
+def _main( strFile, iRow, iCol, strMethod, iIter, fSparsity, fNoise, strSpike, strBase, bParam, iPval, fPermutationNoise, bException ):
 
 	strTitle = generate_title( strMethod, strBase, strSpike, iRow, iCol, bParam, iPval, fSparsity, fNoise, iIter, fPermutationNoise )
 	strFile = strFile or (strTitle + ".png") 
 
-
-	try:
+	def __main( ):
 		s = strudel.Strudel()
 		s.set_base(strBase)
 		s.set_noise(fNoise)
@@ -81,10 +80,15 @@ def _main( strFile, iRow, iCol, strMethod, iIter, fSparsity, fNoise, strSpike, s
 
 		return aROC 
 
-	except Exception:
-		sys.stderr.write("ERROR!\n")
-		return subprocess.call( ["touch",strFile] )
-		### Exception handling added for sfle runs 
+	if bException:
+		return __main()
+	else:
+		try:
+			__main()
+		except Exception:
+			sys.stderr.write("ERROR!\n")
+			return subprocess.call( ["touch",strFile] )
+			### Exception handling added for sfle runs 
 
 if __name__ == "__main__":
 
@@ -116,6 +120,10 @@ if __name__ == "__main__":
 	        action = "store_true",
 	        help = "Parametric pvalue generation? else permutation based error bar generation. The only ones with parametric error bars are pearson, spearman, x2" )
 
+	argp.add_argument( "--exception",                dest = "bException",
+	        action = "store_true",
+	        help = "Be less lenient about exception handling. Used in non-sfle mode" )
+
 	argp.add_argument( "-i",                dest = "iIter",             metavar = "num_iteration",
 	        type = int,   default = "3",
 	        help = "Number of iterations for each association method" )
@@ -146,4 +154,4 @@ if __name__ == "__main__":
 
 
 	args = argp.parse_args( ) 
-	_main( args.strFile, args.iRow, args.iCol, args.strMethod, args.iIter, args.fSparsity, args.fNoise, args.strSpike, args.strBase, args.bParam, args.iPval, args.fPermutationNoise )
+	_main( args.strFile, args.iRow, args.iCol, args.strMethod, args.iIter, args.fSparsity, args.fNoise, args.strSpike, args.strBase, args.bParam, args.iPval, args.fPermutationNoise, args.bException )
