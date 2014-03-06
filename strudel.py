@@ -264,6 +264,10 @@ class Strudel:
 		### Distributions parameters 
 		### Let the base distribution be just a single distribution, or an arbitrary tuple of distributions 
 		
+		### Association Methods 
+
+		self.association_method = "pearson"
+
 		### Base distribution 
 
 		self.base 				= "uniform"
@@ -986,6 +990,9 @@ class Strudel:
 	def set_prior_shape( self, prior_shape ):
 		self.prior_shape = prior_shape 
 
+	def set_sparsity_param( self, fSparsity ):
+		self.sparsity_param = fSparsity 
+
 	def set_preset( self, strMethod ):
 		strPrefix = "__preset_"
 		pMethod = getattr( self, strPrefix + strMethod )
@@ -1000,6 +1007,45 @@ class Strudel:
 		Infer parameters based on model, now use those to generate synthetic data or run some baseline pipeline 
 		"""
 		pass 
+
+
+	#========================================#
+	# Randomization methods 
+	#========================================#
+
+	def _permutation_test_association( pArray1, pArray2, strMethod = "norm_mi" ):
+		"""
+		* Make sure arrays are already normalized 
+		* Make sure that the arrays are 1-dimensional 
+		* To Do: How can we do a quick assay to figure out how many iterations to do? 
+		"""
+		
+		assert( self._is_1d( pArray1 ) and self._is_1d( pArray2 ) )
+		iIter = self.num_iteration
+		pMethod = self.hash_association_method[strMethod]
+
+		fAssoc = self._association( pArray1, pArray2 )
+
+
+
+
+
+
+	def _permutation_test_association_many( pArray1, pArray2, iIter = 100, strMethod = "norm_mi", strReduceMethod = "pca" ):
+		"""
+		Handles many-to-many permutation testing 
+
+		Calls _permutation_test_association
+		"""
+
+	def permutation_test_association( pArray1, pArray2, iIter = 100, strMethod = "norm_mi", strReduceMethod = "pca" ):
+		"""
+		Master wrapper that calls _permutation_test_association and _permutation_test_association_many
+
+		Handles many-to-many, one-to-one
+		"""
+		pass 
+
 
 	#========================================#
 	# Summary Methods -- exploration 
@@ -1109,11 +1155,17 @@ class Strudel:
 					return __invariance( pAssociation( aPermX, Y ) )
 					
 				fAssociation = __invariance( pAssociation( X,Y ) )
-				#sys.stderr.write( "Generating " + str(iIter) + " permuations ...\n" )
+
 				aDist = [__permute(X,Y, pAssociation=pAssociation) for _ in range(iIter)] ##array containing finite estimation of sampling distribution 
 				
+				fPercentile = scipy.stats.percentileofscore( aDist, fAssociation, kind="strict" ) ##source: Good 2000 
+				### \frac{ \sharp\{\rho(\hat{X},Y) \geq \rho(X,Y) \} +1  }{ k + 1 }
+				### k number of iterations, \hat{X} is randomized version of X 
+				### PercentileofScore function ('strict') is essentially calculating the additive inverse (1-x) of the wanted quantity above 
+				### consult scipy documentation at: http://docs.scipy.org/doc/scipy-0.7.x/reference/generated/scipy.stats.percentileofscore.html
 
-				fP = 1.0 - scipy.stats.percentileofscore( aDist, fAssociation )/100.0 
+				fP = ((1.0-fPercentile/100.0)*iIter + 1)/(iIter+1)
+
 				return fAssociation, fP 
 
 			hashMethod = {"bootstrap": _bootstrap,
