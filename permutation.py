@@ -3,8 +3,14 @@ import argparse
 import sys 
 import numpy, scipy
 
-def _permutation( X, Y, strAssociation, iIter ):
+import multiprocessing 
+from multiprocessing import Process, Queue
+from time import gmtime, strftime
+import random
+
+def _permutation( X, Y, strMultiProcessing ,strVerboseOutput, strAssociation, iIter    ):
 	def __invariance( aOut ):
+ 
 			"""
 			Enforce invariance: when nonparametric pvalue generation is asked, 
 			parametric pval should not be outputted.  
@@ -19,18 +25,24 @@ def _permutation( X, Y, strAssociation, iIter ):
 		"""
 		Give value of pAssociation on one instance of permutation 
 		"""
+		sys.stdout.write("Iteration number: " + str(ix+1) + "  - " + strftime("%a, %d %b %Y %H:%M:%S ", gmtime()) +"\n")
 		aPermX = numpy.random.permutation( X )##without loss of generality, permute X and not Y
 		return __invariance( pAssociation( aPermX, Y ) )
-	
-	X,Y = X.flatten(), Y.flatten() 
+ 
+	X,Y = X.flatten(), Y[0].flatten() #* <--------------  The original code was using Y not Y[0], so when used rows cols parm gave error
 
 	s = strudel.Strudel( )
 	pAssociation = s.hash_association_method[strAssociation]
 	fAssociation = __invariance( pAssociation( X,Y ) )
 
-	### This part should be parallelized 
-	aDist = [__permute(X,Y, pAssociation=pAssociation) for _ in range(iIter)] ##array containing finite estimation of sampling distribution 
-	### This part should be parallelized
+	#***********************************************************************************
+	#*  Calculate permutation with multi processing or iteration depending on flag     *
+	#***********************************************************************************
+ 	if  strMultiProcessing == "N":
+		aDist = [__permute(X,Y, pAssociation=pAssociation) for ix in range(iIter)] ##array containing finite estimation of sampling distribution 
+	else:
+		aDist = Calc_Permutations_Using_Multiprocessing(X,Y,  iIter, pAssociation, strVerboseOutput)       #* Perform calculations of permutations using multiprocessing	
+
 
 	fPercentile = scipy.stats.percentileofscore( aDist, fAssociation, kind="strict" ) ##source: Good 2000 
 	### \frac{ \sharp\{\rho(\hat{X},Y) \geq \rho(X,Y) \} +1  }{ k + 1 }
@@ -39,10 +51,77 @@ def _permutation( X, Y, strAssociation, iIter ):
 	### consult scipy documentation at: http://docs.scipy.org/doc/scipy-0.7.x/reference/generated/scipy.stats.percentileofscore.html
 
 	fP = ((1.0-fPercentile/100.0)*iIter + 1)/(iIter+1)
-
 	return fAssociation, fP 
+	
 
-def _main( strBase, fNoise, iRow, iCol, fSparsity, strSpike, strMethod, iIter, fPermutationNoise ):
+
+	
+	
+#********************************************************************************
+#*  Calculate the permutations using Multiprocessing                            *
+#********************************************************************************
+def Calc_Permutations_Using_Multiprocessing(X,Y,   iIter, pAssociation,  strVerboseOutput):
+	aDist = list()
+	procs = []
+ 	out_q = multiprocessing.Queue()
+  
+		
+	for i in range(iIter):
+		if   strVerboseOutput == "YY": #  If requested verbose output	
+			sys.stderr.write("Starting Process  " + str(i+1) + "  - " + strftime("%a, %d %b %Y %H:%M:%S ", gmtime())+ "\n")
+		
+	 
+		p = multiprocessing.Process(
+			target=calc_permutation_worker,
+			args = (X,Y, pAssociation, strVerboseOutput,  out_q))
+		procs.append(p)
+		p.start()
+
+	# Collect all results  
+
+	
+	for i in range(iIter):
+		if   strVerboseOutput == "YY": #  If requested super verbose output
+			sys.stderr.write("Collecting results from  Process #" + str(i+1) + "  - " + strftime("%a, %d %b %Y %H:%M:%S ", gmtime()) +"\n")
+		aOut = out_q.get(['block', None])
+		aDist.append(aOut)
+
+		
+	if   strVerboseOutput == "YY": #  If requested verbose output	
+		print "adist=",aDist
+	# Wait for all worker processes to finish
+	i = 0
+	for p in procs:
+		i+=1
+		if   strVerboseOutput == "YY": #  If requested verbose output
+			sys.stderr.write("Joining  Process " + str(i)+ "  - " + strftime("%a, %d %b %Y %H:%M:%S ", gmtime()) + "\n")
+		p.join()
+ 	return  aDist
+
+
+#********************************************************************************
+#*  Calculate the associations worker                                           *
+#********************************************************************************
+def  calc_permutation_worker(X,Y, pAssociation,strVerboseOutput,  out_q):
+	X[0] = random.random()
+ 	aPermX = numpy.random.permutation( X )             ##without loss of generality, permute X and not Y
+ 	aOut = pAssociation( aPermX, Y )
+ 	CalcResult = aOut
+	if len(aOut) > 1:
+		CalcResult = aOut[0]
+  	out_q.put(CalcResult)
+	return 0
+	
+	
+	 
+	
+	
+	
+	
+	
+	
+
+def _main( strBase, fNoise, iRow, iCol, fSparsity, strSpike, strMethod, iIter, fPermutationNoise,  strMultiProcessing, strVerboseOutput  ):
 	s = strudel.Strudel()
 	s.set_base(strBase)
 	s.set_noise(fNoise)
@@ -50,10 +129,11 @@ def _main( strBase, fNoise, iRow, iCol, fSparsity, strSpike, strMethod, iIter, f
 	#s.set_sparsity_param( fSparsity )
 
 	##Generate synthetic data 
+ 
 	X = s.randmat( shape = (iRow, iCol) )
 	Y = s.spike( X, sparsity = fSparsity, strMethod = strSpike )
 
-	return _permutation( X, Y, strAssociation = strMethod, iIter = iIter )
+	return _permutation( X, Y , strMultiProcessing,strVerboseOutput, strAssociation = strMethod, iIter = iIter  )
 
 if __name__ == "__main__":
 
@@ -95,8 +175,33 @@ if __name__ == "__main__":
 	argp.add_argument( "-b",                dest = "strBase",             metavar = "base_distribution",
 	        type = str,   default = "normal",
 	        help = "Base distribution: [normal, uniform]" )
+			
+	argp.add_argument( "--multiprocessing", "-mp",                dest = "strMultiProcessing",             metavar = "MultiprocessingRequest",
+	        type = str,   default = "Y",
+	        help = "Request to process iterations using multiprocessing - default: Y" )			
 
+	argp.add_argument( "--verbose_output", "-v",                dest = "strVerboseOutput",             metavar = "VerboseOutput",
+	        type = str,   default = "N",
+	        help = "Request Verbose Output -  Could be Y, or YY(very verbose) or N; default: N  " )			
+				
 	args = argp.parse_args( ) 
-	fAssociation, fP = _main( args.strBase, args.fNoise, args.iRow, args.iCol, args.fSparsity, args.strSpike, args.strMethod , args.iIter, args.fPermutationNoise )
+
+	if  args.strVerboseOutput.startswith("Y"): #  	If requested verbose output
+		sys.stderr.write("Program starting "   + strftime("%a, %d %b %Y %H:%M:%S ", gmtime()) + "\n")
+
+	
+	fAssociation, fP = _main( args.strBase,
+		args.fNoise, 
+		args.iRow,  
+		args.iCol,  
+		args.fSparsity, 
+		args.strSpike, 
+		args.strMethod ,  
+		args.iIter, 
+		args.fPermutationNoise,  
+		args.strMultiProcessing,
+		args.strVerboseOutput)
 	sys.stdout.write( "\t".join( ["fAssociation",str(fAssociation)] ) + "\n"  )
 	sys.stdout.write( "\t".join( ["fP",str(fP)] ) + "\n" )
+	if  args.strVerboseOutput.startswith("Y"):    #  If requested verbose output
+		sys.stderr.write("Program ended "  + strftime("%a, %d %b %Y %H:%M:%S ", gmtime()) + "\n")
