@@ -1072,6 +1072,7 @@ class Strudel:
 		bNormalize = False, iIter = None, strNPMethod = "permutation", preset = None ):
 		"""
 		1-1 association testing
+
 		"""		
 
 		if not "halla" in strMethod:
@@ -2029,11 +2030,140 @@ class Strudel:
 	# Data visualization helpers + Plotter
 	#=============================================================#
 
+
 	def view( self, X, A, method = "pearson" ):
 		"""
 		Generic `view` method 
 		"""
 		pass 
+
+	def get_fpr_tpr_thresholds( self, true_labels, prob_vec ):
+
+		### TPR = hit rate (TP/(TP+FN) = sensitivity); FPR = fall-out (FP/(FP+TN) = 1-specificity)
+		### Thresholding behavior is the following: I( val >= alpha ); hence the top-most threshold is missing (i.e. I( val > alpha_max ), the one that classifies 
+		### none of the examples as a positive examples )
+
+		from sklearn.metrics import roc_curve, auc
+
+		if self._is_meta( true_labels ):
+			assert( self._is_meta( prob_vec ) ) 
+			assert( len(true_labels) == len(prob_vec) )
+
+		elif self._is_1d( true_labels ) and self._is_1d( prob_vec ):
+			assert( len(true_labels) == len(prob_vec) )
+			true_labels, prob_vec = [true_labels], [prob_vec] ##invariance 
+
+		aRoc = array([roc_curve( t, p ) for t,p in zip(true_labels, prob_vec)])
+		fpr, tpr, thresholds = aRoc[:,0], aRoc[:,1], aRoc[:,2]
+		return fpr, tpr, thresholds 
+
+	def roc( self, true_labels, prob_vec, strTitle = None, astrLabel = None, strFile = None ):
+		"""
+		Takes true labels and the probability vectors and calculates the corresponding fpr/tpr; return roc object
+
+		Parameters
+		------------
+
+		true_labels: array of float
+			Binary labels
+		prob_vec: array of float
+			Probability of being a true label 
+
+		Returns 
+		----------
+
+		roc_auc: float
+			AUC value 
+		"""
+
+		fpr, tpr, thresholds = self.get_fpr_tpr_thresholds( true_labels, prob_vec )		
+		roc_auc = self.plot_roc( fpr, tpr, strTitle = strTitle, astrLabel = astrLabel, strFile = strFile )
+		return roc_auc 
+
+	def alpha_fpr( self, true_labels, prob_vec, strTitle = None, astrLabel = None, strFile = None ):
+		"""
+		Assesses performance of classifier in detecting association 
+		"""
+		fpr, tpr, thresholds = self.get_fpr_tpr_thresholds( true_labels, prob_vec ) 
+		alpha = 1.0 - thresholds 
+		afAUC = self.plot_alpha_fpr( alpha, fpr )
+		return afAUC 
+
+	def accuracy( self, true_labels, emp_labels ):
+		assert( len(true_labels) == len(emp_labels) )
+		iLen = len(true_labels)
+		return sum( self.md( true_labels, emp_labels, lambda x,y: int(x==y) ) )*(1/float(iLen))
+
+	def accuracy_with_threshold( self, true_labels, prob_vec, fThreshold = 0.05 ):
+		if not fThreshold:
+			fThreshold = self.q 
+		return self.accuracy( true_labels, self.threshold( prob_vec, fThreshold ) )
+
+	#-------------------------------------------------------------#
+	# Plotting 
+	#-------------------------------------------------------------#
+
+	def plot_alpha_fpr( self, alpha, fpr, strTitle = None, astrLabel = [], strFile = None ):
+		"""
+		Assesses performance of classifier in detecting association 
+
+		Y axis - fpr 
+		X axis - alpha 
+
+		Y = X line is expected behavior; above the line is anti-conservative; below the line is conservative 
+
+		Need to be vectorizable a la plot_roc 
+		"""
+
+		## alpha is 1.0 - thresholds in the traditional sense that a p-value is the inverse value of being positive example 
+
+		import pylab 
+		pl = pylab 
+
+		if self._is_meta( fpr ):
+			assert( self._is_meta( alpha ) ) 
+			assert( len(fpr) == len(alpha) )
+
+		elif self._is_1d( fpr ) and self._is_1d( alpha ):
+			assert( len(fpr) == len(alpha) )
+			fpr, alpha = [fpr], [alpha] ##invariance 
+
+		gLabels = itertools.cycle( astrLabel ) if astrLabel else itertools.repeat("")
+
+		## available colors: blue, green, red, cyan, magenta, yellow, black, white 
+		aColors = ["blue", "red", "green", "black", "magenta"]
+		gColors = itertools.cycle( aColors ) ##generator object 
+
+		afAUC = [auc(a,f) for a,f in zip(alpha,fpr)]
+		
+		## As per thresholding behavior, need to add values at "0.0" and "1.0"
+		## At "1.0", hit rate tpr is 0.0 and fall-off fpr is 0.0 
+		## This corresponds to [1.0,0.0]
+		## Need to invert the threshold to get "alpha" values in the traditional sense 
+
+		pl.figure() ##initialize figure 
+
+		pl.plot([0, 1], [0, 1], 'k--')
+		pl.xlim([0.0, 1.0])
+		pl.ylim([0.0, 1.0])
+		pl.xlabel('Alpha')
+		pl.ylabel('False Positive Rate')
+		pl.title( strTitle or 'FPR vs. Alpha cut-off' )
+
+		for i, fFPR in enumerate( fpr ):
+			strColor = next(gColors)
+			strLabel = next(gLabels)
+			pl.plot(alpha[i], fFPR, c = strColor, label= strLabel + '(AUC = %0.2f)' % afAUC[i])
+			pl.legend(loc="lower right")
+		
+		if strFile:
+			pl.savefig( strFile )
+			return afAUC 
+
+		else:
+			pl.show()
+			return afAUC
+
 
 	def plot_roc( self, fpr, tpr, strTitle = None, astrLabel = [], strFile = None ):
 		"""
@@ -2085,7 +2215,7 @@ class Strudel:
 		for i, fFPR in enumerate( fpr ):
 			strColor = next(gColors)
 			strLabel = next(gLabels)
-			pl.plot(fFPR, tpr[i], c = strColor, label= strLabel + '(ROC = %0.2f)' % roc_auc[i])
+			pl.plot(fFPR, tpr[i], c = strColor, label= strLabel + '(AUC = %0.2f)' % roc_auc[i])
 			pl.legend(loc="lower right")
 		
 		if strFile:
@@ -2096,46 +2226,4 @@ class Strudel:
 			pl.show()
 			return roc_auc 
 
-	def roc( self, true_labels, prob_vec, strTitle = None, astrLabel = None, strFile = None ):
-		"""
-		Takes true labels and the probability vectors and calculates the corresponding fpr/tpr; return roc object
 
-		Parameters
-		------------
-
-		true_labels: array of float
-			Binary labels
-		prob_vec: array of float
-			Probability of being a true label 
-
-		Returns 
-		----------
-
-		roc_auc: float
-			AUC value 
-		"""
-
-		from sklearn.metrics import roc_curve, auc
-
-		if self._is_meta( true_labels ):
-			assert( self._is_meta( prob_vec ) ) 
-			assert( len(true_labels) == len(prob_vec) )
-
-		elif self._is_1d( true_labels ) and self._is_1d( prob_vec ):
-			assert( len(true_labels) == len(prob_vec) )
-			true_labels, prob_vec = [true_labels], [prob_vec] ##invariance 
-
-		aRoc = array([roc_curve( t, p ) for t,p in zip(true_labels, prob_vec)])
-		fpr, tpr, thresholds = aRoc[:,0], aRoc[:,1], aRoc[:,2]
-		roc_auc = self.plot_roc( fpr, tpr, strTitle = strTitle, astrLabel = astrLabel, strFile = strFile )
-		return roc_auc 
-
-	def accuracy( self, true_labels, emp_labels ):
-		assert( len(true_labels) == len(emp_labels) )
-		iLen = len(true_labels)
-		return sum( self.md( true_labels, emp_labels, lambda x,y: int(x==y) ) )*(1/float(iLen))
-
-	def accuracy_with_threshold( self, true_labels, prob_vec, fThreshold = 0.05 ):
-		if not fThreshold:
-			fThreshold = self.q 
-		return self.accuracy( true_labels, self.threshold( prob_vec, fThreshold ) )
