@@ -213,7 +213,6 @@ class Strudel:
 										"fisher": scipy.stats.fisher_exact, 
 										"norm_mi": halla.distance.norm_mi, 
 										"mi": halla.distance.mi,
-										"norm_mid": halla.distance.norm_mid,
 										"halla": lambda X,Y: halla.HAllA(X,Y).run( ),
 										}
 
@@ -225,7 +224,6 @@ class Strudel:
 										"fisher": False,
 										"norm_mi": True,
 										"mi": True,
-										"norm_mid": True,
 										"halla": False
 										}
 
@@ -236,8 +234,6 @@ class Strudel:
 
 	
 		self.hash_meta_association_method = {"halla": {"halla_mi": None,
-											"halla_mid": None, 
-											"halla_norm_mid": None,
 											"halla_copula": None }}
 
 
@@ -1078,18 +1074,6 @@ class Strudel:
 		if not "halla" in strMethod:
 			assert( not(self._is_iter(X[0])) and not(self._is_iter(Y[0])) ), "X and Y must be 1-dimensional arrays or python iterable object"
 		
-		#hash_method = {"pearson": scipy.stats.pearsonr,
-		#				"spearman": scipy.stats.spearmanr, 
-		#				"kw": scipy.stats.mstats.kruskalwallis, 
-		#				"anova": scipy.stats.f_oneway, 
-		#				"x2": scipy.stats.chisquare,
-		#				"fisher": scipy.stats.fisher_exact, 
-		#				"norm_mi": halla.distance.norm_mi, 
-		#				"mi": halla.distance.mi,
-		#				"norm_mid": halla.distance.norm_mid 
-		#				}
-
-
 		##Does parametric test exist? 
 		
 		# Automatically determine if have to be discretized? 
@@ -2000,10 +1984,10 @@ class Strudel:
 		
 		hashDiscretize = {"pearson": False, "spearman": False, 
 						"mi": True, "mid": True, "adj_mi":True, 
-						"adj_mid": True, "norm_mi": True, "norm_mid": True }
+						"adj_mid": True, "norm_mi": True, }
 
 		hashMethods = {"pearson": halla.distance.cor, "norm_mi": halla.distance.norm_mi,
-						"mi": halla.distance.mi, "norm_mid" : halla.distance.norm_mid}
+						"mi": halla.distance.mi, }
 
 		pFunDiscretize = halla.stats.discretize 
 
@@ -2086,7 +2070,7 @@ class Strudel:
 		"""
 		fpr, tpr, thresholds = self.get_fpr_tpr_thresholds( true_labels, prob_vec ) 
 		alpha = 1.0 - thresholds 
-		afAUC = self.plot_alpha_fpr( alpha, fpr )
+		afAUC = self.plot_alpha_fpr( alpha, fpr, strTitle = strTitle, astrLabel = astrLabel, strFile = strFile )
 		return afAUC 
 
 	def accuracy( self, true_labels, emp_labels ):
@@ -2158,6 +2142,7 @@ class Strudel:
 		
 		if strFile:
 			pl.savefig( strFile )
+			sys.stderr.write("Saving alpha plot ...\n")
 			return afAUC 
 
 		else:
@@ -2220,6 +2205,7 @@ class Strudel:
 		
 		if strFile:
 			pl.savefig( strFile )
+			sys.stderr.write("Saving roc plot ...\n")
 			return roc_auc 
 
 		else:
