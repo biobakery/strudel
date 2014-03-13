@@ -103,7 +103,7 @@ def Calc_Permutations_Using_Multiprocessing(X,Y,   iIter, pAssociation,  strVerb
 #*  Calculate the associations worker                                           *
 #********************************************************************************
 def  calc_permutation_worker(X,Y, pAssociation,strVerboseOutput,  out_q):
-	X[0] = random.random()
+	numpy.random.seed()							#So that each worker provides different result
  	aPermX = numpy.random.permutation( X )             ##without loss of generality, permute X and not Y
  	aOut = pAssociation( aPermX, Y )
  	CalcResult = aOut
