@@ -2118,6 +2118,8 @@ class Strudel:
 		aColors = ["blue", "red", "green", "black", "magenta"]
 		gColors = itertools.cycle( aColors ) ##generator object 
 
+		print alpha[0]
+		print fpr[0]
 		afAUC = [auc(a,f) for a,f in zip(alpha,fpr)]
 		
 		## As per thresholding behavior, need to add values at "0.0" and "1.0"
