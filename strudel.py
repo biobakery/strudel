@@ -80,6 +80,29 @@ from sklearn.metrics import roc_curve, auc
 ####### namespace for plotting 
 #from pylab import hist, plot, figure, scatter
 
+
+def closure( X, axis = 0 ):
+	"""
+	Take matrix X and vector-apply the closure function 
+	"""
+
+	def _closure( x ):
+		"""
+		make sure that x is a vector; not an array 
+		"""
+
+		divisor = float(sum( x ))
+
+		return map( lambda f: f/divisor, x )
+
+	iRow, iCol = X.shape 
+
+	if axis == 1:
+		return array([_closure(X[:,i]) for i in range(iCol)]).T
+
+	else:
+		return array([_closure(n) for n in X])
+
 class Strudel:
 	### Avoid lazy evaluation when possible, to avoid depency problems 
 	### Make sure to build the class in such a way that making the distributions arbitrarily complicated is easy to write down 
@@ -1916,6 +1939,55 @@ class Strudel:
 	def threshold( self, pArray, fValue ):
 		return self.m( pArray, lambda x: int(x <= fValue) )
 
+
+	def discretize_by_quantile( self, X, bins = 10, axis = 0 ):
+		"""
+		Discretize a vector or matrix X by its marginal quantile function, 
+		estimated in a non-parametric fashion 
+
+		"""
+
+		def _discretize_one( _x, x, vec_linspace ):
+
+			pLinspace = vec_linspace 
+
+			iOut = None 
+
+			for i in range(len(pLinspace)-1):
+				fOne, fTwo = pLinspace[i], pLinspace[i+1]
+				
+				fPer = scipy.stats.percentileofscore(x, _x)/100.00
+
+				if fOne < fPer <= fTwo:
+					iOut = i 
+
+			if not bool(iOut):
+				iOut = len(pLinspace)-1
+
+			return iOut 
+
+		def _discretize_by_quantile( x, bins ):
+
+			iCol = len(x)
+			pLinspace = numpy.linspace(0,1,bins+1)	
+
+			return [_discretize_one(_x, x, pLinspace) for _x in x] 
+
+		### matrix correction; invariance principle 
+		if X.ndim == 1:
+			X = array([X])
+
+		if axis == 1:
+			X = X.T 
+
+		iRow, iCol = X.shape 
+
+		if not bins:
+			bins = numpy.ceil( numpy.sqrt(iRow) )
+
+		return array([_discretize_by_quantile(vec, bins) for vec in X])
+
+
 	def classify( self, pArray, method = "logistic", iClass = 2 ):
 		"""
 		Classify to discrete bins using cdf of standard distributions 
@@ -2013,13 +2085,6 @@ class Strudel:
 	#=============================================================#
 	# Data visualization helpers + Plotter
 	#=============================================================#
-
-
-	def view( self, X, A, method = "pearson" ):
-		"""
-		Generic `view` method 
-		"""
-		pass 
 
 	def get_fpr_tpr_thresholds( self, true_labels, prob_vec ):
 
