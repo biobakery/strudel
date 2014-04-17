@@ -103,6 +103,76 @@ def closure( X, axis = 0 ):
 	else:
 		return array([_closure(n) for n in X])
 
+
+def segment_tripartite_response( X, delimiter = 0 ):
+	"""
+	For bi-directional association patterns (i.e. values range between [-1,1]), 
+	one oftentimes wants to analyze the confusion matrix over all ${3 \choose 2}$
+	combinations of one-vs-all classifications.
+
+	This functions helps separate these cases. 
+
+		Parameters 
+		------------
+
+			X: numpy.ndarray
+			Y: numpy.ndarray 	
+			delimiter: float 
+
+		Returns 
+		-----------
+
+			modified_X, modified_Y 
+
+		Notes 
+		-----------
+
+			the delimiter you choose will be the reference point for the null (0) case
+
+			for instance, 1 --> [-1,0] is "1" and [0,1] is "0"
+
+	"""
+
+	X = array(X)
+
+	if X.ndim == 1:
+		X = array([X])
+
+	iRow, iCol = X.shape 
+
+	def _transform_vec( X, pFun = lambda y: (y+1.0)/2.0 ):
+		"""	
+		X is a vector
+		"""
+
+		return map( pFun, X )
+
+	def _transform( X, pFun = lambda y: (y+1.0)/2.0 ):
+		"""
+		X is an array
+		"""
+
+		return array([_transform_vec(x, pFun = pFun) for x in X])
+
+
+	### fix function later on to handle arbitrary delimiters
+	assert( delimiter == 0 or delimiter == 1 or delimiter == -1 )
+
+	if delimiter == 0 :
+		### association vs. non-association case 
+
+		return numpy.abs(X)
+
+	elif delimiter == -1:
+		### covariation vs. non-co-variation case 
+
+		return _transform( X, pFun = lambda y: (y+1.0)/2.0 )
+
+	elif delimiter == 1:
+		### co-exclusion vs. non-co-exclusion case 
+
+		return _transform( X, pFun = lambda y: (1.0-y)/2.0 )
+
 class Strudel:
 	### Avoid lazy evaluation when possible, to avoid depency problems 
 	### Make sure to build the class in such a way that making the distributions arbitrarily complicated is easy to write down 
@@ -236,6 +306,7 @@ class Strudel:
 										"fisher": scipy.stats.fisher_exact, 
 										"norm_mi": halla.distance.norm_mi, 
 										"mi": halla.distance.mi,
+										"kendalltau": scipy.stats.kendalltau,
 										"halla": lambda X,Y: halla.HAllA(X,Y).run( ),
 										}
 
@@ -247,12 +318,14 @@ class Strudel:
 										"fisher": False,
 										"norm_mi": True,
 										"mi": True,
-										"halla": False
+										"halla": False,
+										"kendalltau": False, 
 										}
 
 		self.hash_association_parametric = {"pearson": True,
 										"spearman": True,
 										"anova": True,
+										"kendalltau": False, 
 										} 
 
 	
