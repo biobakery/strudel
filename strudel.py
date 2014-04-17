@@ -76,102 +76,13 @@ import itertools
 from scipy.stats import invgamma, norm, uniform, logistic, gamma, lognorm, beta, pareto, pearsonr  
 from numpy.random import normal, multinomial, dirichlet 
 from sklearn.metrics import roc_curve, auc 
+from scipy.spatial.distance import squareform 
 
 ####### namespace for plotting 
 #from pylab import hist, plot, figure, scatter
 
 
-def closure( X, axis = 0 ):
-	"""
-	Take matrix X and vector-apply the closure function 
-	"""
 
-	def _closure( x ):
-		"""
-		make sure that x is a vector; not an array 
-		"""
-
-		divisor = float(sum( x ))
-
-		return map( lambda f: f/divisor, x )
-
-	iRow, iCol = X.shape 
-
-	if axis == 1:
-		return array([_closure(X[:,i]) for i in range(iCol)]).T
-
-	else:
-		return array([_closure(n) for n in X])
-
-
-def segment_tripartite_response( X, delimiter = 0 ):
-	"""
-	For bi-directional association patterns (i.e. values range between [-1,1]), 
-	one oftentimes wants to analyze the confusion matrix over all ${3 \choose 2}$
-	combinations of one-vs-all classifications.
-
-	This functions helps separate these cases. 
-
-		Parameters 
-		------------
-
-			X: numpy.ndarray
-			Y: numpy.ndarray 	
-			delimiter: float 
-
-		Returns 
-		-----------
-
-			modified_X, modified_Y 
-
-		Notes 
-		-----------
-
-			the delimiter you choose will be the reference point for the null (0) case
-
-			for instance, 1 --> [-1,0] is "1" and [0,1] is "0"
-
-	"""
-
-	X = array(X)
-
-	if X.ndim == 1:
-		X = array([X])
-
-	iRow, iCol = X.shape 
-
-	def _transform_vec( X, pFun = lambda y: (y+1.0)/2.0 ):
-		"""	
-		X is a vector
-		"""
-
-		return map( pFun, X )
-
-	def _transform( X, pFun = lambda y: (y+1.0)/2.0 ):
-		"""
-		X is an array
-		"""
-
-		return array([_transform_vec(x, pFun = pFun) for x in X])
-
-
-	### fix function later on to handle arbitrary delimiters
-	assert( delimiter == 0 or delimiter == 1 or delimiter == -1 )
-
-	if delimiter == 0 :
-		### association vs. non-association case 
-
-		return numpy.abs(X)
-
-	elif delimiter == -1:
-		### covariation vs. non-co-variation case 
-
-		return _transform( X, pFun = lambda y: (y+1.0)/2.0 )
-
-	elif delimiter == 1:
-		### co-exclusion vs. non-co-exclusion case 
-
-		return _transform( X, pFun = lambda y: (1.0-y)/2.0 )
 
 class Strudel:
 	### Avoid lazy evaluation when possible, to avoid depency problems 
@@ -325,7 +236,7 @@ class Strudel:
 		self.hash_association_parametric = {"pearson": True,
 										"spearman": True,
 										"anova": True,
-										"kendalltau": False, 
+										"kendalltau": True, 
 										} 
 
 	
@@ -1586,7 +1497,7 @@ class Strudel:
 	# Spike functions 
 	#=============================================================#
 
-	def spike( self, X, strMethod = "line", sparsity = 1.0, bAdjacency = False, aArgs = [] ):
+	def spike( self, X, strMethod = "line", sparsity = 1.0, direction = False, bAdjacency = False, aArgs = [] ):
 		"""
 		Introduce spikes between variables. 
 
@@ -1763,6 +1674,12 @@ class Strudel:
 	**** Normal mixture model (clusters), linear spikes
 	**** Normal random, no cluster structure, sine spike
 	"""
+
+	def intraspike( self, sparsity, method, distribution_type = "mixture" ):
+		pass
+
+	def interspike( self, X, A, sparsity, method ):
+		pass 
 
 	def spike_synthetic_data( self, X, A = None, sparsity = None, spike_method = "parabola" ):
 		"""
@@ -2011,6 +1928,100 @@ class Strudel:
 
 	def threshold( self, pArray, fValue ):
 		return self.m( pArray, lambda x: int(x <= fValue) )
+
+
+	def closure( self, X, axis = 0 ):
+		"""
+		Take matrix X and vector-apply the closure function 
+		"""
+
+		def _closure( x ):
+			"""
+			make sure that x is a vector; not an array 
+			"""
+
+			divisor = float(sum( x ))
+
+			return map( lambda f: f/divisor, x )
+
+		iRow, iCol = X.shape 
+
+		if axis == 1:
+			return array([_closure(X[:,i]) for i in range(iCol)]).T
+
+		else:
+			return array([_closure(n) for n in X])
+
+
+	def segment_tripartite_response( self, X, delimiter = 0 ):
+		"""
+		For bi-directional association patterns (i.e. values range between [-1,1]), 
+		one oftentimes wants to analyze the confusion matrix over all ${3 \choose 2}$
+		combinations of one-vs-all classifications.
+
+		This functions helps separate these cases. 
+
+			Parameters 
+			------------
+
+				X: numpy.ndarray
+				Y: numpy.ndarray 	
+				delimiter: float 
+
+			Returns 
+			-----------
+
+				modified_X, modified_Y 
+
+			Notes 
+			-----------
+
+				the delimiter you choose will be the reference point for the null (0) case
+
+				for instance, 1 --> [-1,0] is "1" and [0,1] is "0"
+
+		"""
+
+		X = array(X)
+
+		if X.ndim == 1:
+			X = array([X])
+
+		iRow, iCol = X.shape 
+
+		def _transform_vec( X, pFun = lambda y: (y+1.0)/2.0 ):
+			"""	
+			X is a vector
+			"""
+
+			return map( pFun, X )
+
+		def _transform( X, pFun = lambda y: (y+1.0)/2.0 ):
+			"""
+			X is an array
+			"""
+
+			return array([_transform_vec(x, pFun = pFun) for x in X])
+
+
+		### fix function later on to handle arbitrary delimiters
+		assert( delimiter == 0 or delimiter == 1 or delimiter == -1 )
+
+		if delimiter == 0 :
+			### association vs. non-association case 
+
+			return numpy.abs(X)
+
+		elif delimiter == -1:
+			### covariation vs. non-co-variation case 
+
+			return _transform( X, pFun = lambda y: (y+1.0)/2.0 )
+
+		elif delimiter == 1:
+			### co-exclusion vs. non-co-exclusion case 
+
+			return _transform( X, pFun = lambda y: (1.0-y)/2.0 )
+
 
 
 	def discretize_by_quantile( self, X, bins = 10, axis = 0 ):
