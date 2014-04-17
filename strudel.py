@@ -1958,10 +1958,12 @@ class Strudel:
 				
 				fPer = scipy.stats.percentileofscore(x, _x)/100.00
 
+
 				if fOne < fPer <= fTwo:
+					#print fOne, fPer, fTwo, i 
 					iOut = i 
 
-			if not bool(iOut):
+			if iOut == None:
 				iOut = len(pLinspace)-1
 
 			return iOut 
