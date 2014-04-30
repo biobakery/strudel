@@ -1497,9 +1497,76 @@ class Strudel:
 	# Spike functions 
 	#=============================================================#
 
+
+	def spike_glm( self, X, K, strLinkage = "linear", sparsity = 1.0, bAdjacency = True ):
+		"""
+		Introduce spikes between variables using glm linkage.  
+
+		Parameters
+		------------
+
+			X: numpy.ndarray 
+
+			strMethod: str 
+			{"linear", "sine", "half_circle", "parabola", "cubic", "log", "vee"}
+
+		Returns 
+		----------
+
+			Y: numpy.ndarray 
+			Transformed Matrix 
+
+
+
+		### Assume that $X$ is a matrix, not just a single vector for now. 
+		##assert( X.ndim > 1 )
+
+		K = 100 
+
+		iRow, iCol = X.shape 
+
+		def DP(X):
+			###Chinese restaurant process implementation
+			return None 
+
+		def g_inverse(X):
+			###Linkage function 
+
+			return None 
+
+		### initialize Y 
+		Y = numpy.zeros( (iRow, iCol) )
+		A = numpy.zeros( (iRow, iRow) ) ### Assume for now that the dimensionality of $X$ and $Y$ are the same 
+
+		partition_X = DP(X)
+		partition_Y = DP(Y) 
+
+		lenPartitionX = len(partition_X)
+		lenPartitionY = len(partition_Y)
+
+		for k in range(K):
+			aiX = numpy.random.randint( lenPartitionX ) ## these are indices
+			aiY = numpy.random.randint( lenPartitionY ) ## these are indices 
+
+			## Draw the beta 
+
+			for w in aiY:
+				Beta = array([numpy.random.normal() for _ in range(iCol)])
+				Y[w] = g_inverse(Beta.T * X[array(aiX)]) ## Set Y_j
+
+				## Set the adjacency matrix 
+
+				for iX in aiX:
+					A[iX][w] = 1
+
+		return (Y,A) if bAdjacency else Y 
+		"""
+		
+		return None 
+
 	def spike( self, X, strMethod = "line", sparsity = 1.0, direction = False, bAdjacency = False, aArgs = [] ):
 		"""
-		Introduce spikes between variables. 
+		Introduce spikes between variables in an one-one fashion 
 
 		Parameters
 		------------
