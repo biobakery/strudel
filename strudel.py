@@ -531,7 +531,24 @@ class Strudel:
 			pArrayNew = self.pp( pArray = pArray, iIter = iIter )
 			return pArrayNew
 
-	def interleave( self, pArray1, pArray2, axis = 0 ):
+	def sq2vec( self, X ):
+		##first make sure that the diagonals are zero
+		if sum(numpy.diag(X)) != 0:
+			X = 1-X 
+
+		return 1-squareform( X )
+
+	def num2rank( self, X ):
+		"""
+		Transforms a numeric vector X into ranks;
+		zero-indexed.
+		"""
+
+		return numpy.argsort( X )
+
+
+
+	def interleave( self, pArray1, pArray2, axis = 0):
 		a,b = pArray1, pArray2
 		c = numpy.empty((a.size + b.size,), dtype=a.dtype)
 		c[0::2] = a
@@ -1218,7 +1235,7 @@ class Strudel:
 			return aAssoc_adjusted 
 
 			
-	def association( self, X, Y = None, strMethod = "pearson", bPval = -1, bParam = False, 
+	def association( self, X, Y = None, strMethod = "pearson", bPval = -1, bParam = False, as_matrix = False,
 		bNormalize = False, iIter = None, strNPMethod = "permutation", strReduceMethod = None, 
 		strCorrectionMethod = None, preset = None ):
 		"""
@@ -1288,7 +1305,12 @@ class Strudel:
 				return self._association( X, Y, strMethod = strMethod, bPval = bPval, bParam = bParam, bNormalize = bNormalize, iIter = iIter, strNPMethod = strNPMethod )
 	
 		#assert( self._is_array( X ) and self._is_array( X[0] ) ), "X is not a non 1-dimensional array" ##make sure X is a proper, non-degenerate array
-	
+		
+		#if as_matrix:
+		#	return strudel.squareform( aOut ) + numpy.diag([1]*)
+		#else:
+		#	return aOut 
+
 	#========================================#
 	# Distribution helpers 
 	#========================================#
@@ -1517,6 +1539,8 @@ class Strudel:
 			Transformed Matrix 
 
 
+		"""
+
 
 		### Assume that $X$ is a matrix, not just a single vector for now. 
 		##assert( X.ndim > 1 )
@@ -1560,7 +1584,7 @@ class Strudel:
 					A[iX][w] = 1
 
 		return (Y,A) if bAdjacency else Y 
-		"""
+		
 		
 		return None 
 
@@ -1574,7 +1598,7 @@ class Strudel:
 			X: numpy.ndarray 
 
 			strMethod: str 
-			{"linear", "sine", "half_circle", "parabola", "cubic", "log", "vee"}
+			{"line", "sine", "half_circle", "parabola", "cubic", "log", "vee"}
 
 		Returns 
 		----------
@@ -1785,6 +1809,121 @@ class Strudel:
 		else:
 			return None 
 
+	def generate_block( self, D, N, preset = "easy", spike_type = "line" ):
+		"""
+		Generate block covariance structure within each dataset (e.g. X, Y)
+		
+		Parameters
+		--------------
+
+			preset: str 
+				{"easy", "hard"}
+
+				Ref: ``Mas-o-menos: a simple sign averaging method for discrimination in genomic 
+				data analysis'', Zhao, S.D. et al
+
+
+		Returns
+		--------------
+
+			X, Simga, C 
+
+		Notes
+		---------------
+
+			* Use greedy neighbor domination to generate block-structure
+			* correlation structure is all linear for now. 
+			* Draw for multivariate Normal distribution
+
+
+
+		"""
+
+		### Initialize covariance matrix 
+		Sigma = numpy.diag([1]*D)
+
+		self.set_base("normal")
+		X = self.randmat( shape = (D,N) )
+
+		if preset == "easy":
+			aiOne = [] 
+			aiTwo = [] 
+			for i in range(D):
+				if numpy.random.binomial(1,0.5) == 0:
+					aiOne.append(i)
+				else:
+					aiTwo.append(i)
+
+			assert( len(aiOne) + len(aiTwo) == D )
+
+			## first group is "+1" correlated; second group is "-1" correlated 
+
+			for pPair in itertools.combinations( aiOne, 2 ):
+				i,j = pPair 
+				#print "1", i,j
+				X[:,i] += numpy.random.randint(5)* X[:,j] + self.noise_distribution( self.noise_param ).rvs( D )
+				Sigma[i][j] = 1
+				Sigma[j][i] = 1
+
+			for pPair in itertools.combinations( aiTwo, 2 ):
+				i,j = pPair
+				#print "-1", i,j 
+				X[:,i] += -1.0*numpy.random.randint(5)* X[:,j] + self.noise_distribution( self.noise_param ).rvs( D )
+				Sigma[i][j] = -1
+				Sigma[j][i] = -1
+
+			return X, Sigma, [aiOne, aiTwo]
+
+		elif preset == "hard":
+			p = 0.5 ##probability of propagation 
+
+			return X 
+
+
+	def generate_spiked_blocks( self, D, N, preset = "easy", spike_type = "linear" ):
+		"""
+		Generate blocks in X and Y; link them with correlation structure
+
+		Parameters
+		--------------
+
+			preset: str 
+				{"easy", "hard"}
+
+				Ref: ``Mas-o-menos: a simple sign averaging method for discrimination in genomic 
+				data analysis'', Zhao, S.D. et al
+
+		Notes
+		--------------
+
+			Assume X and Y have the same dimensions 
+
+
+		"""
+		X, SigmaX, CX = self.generate_block( D,N )
+		Y, SigmaY, CY = self.generate_block( D,N )
+
+		Sigma = numpy.diag([1]*D)
+		iMinCluster = len(CY) if len(CX)-len(CY) >0 else len(CX)
+
+		for i in range(iMinCluster):
+
+			indicesX = CX[i]
+			indicesY = CY[i]
+
+			gSign = itertools.cycle([0,1])
+			
+			### WLOG, linearly spike X into Y
+			for iy in indicesY:
+				iS = next(gSign)
+				for j in indicesX:
+					Y[:,iy] += iS* numpy.random.randint(5) * X[:,j]
+					Sigma[iy][j] = iS
+					Sigma[j][iy] = iS
+
+				Y[:,iy] += self.noise_distribution( self.noise_param ).rvs( D )
+
+		return X,Y,SigmaX, SigmaY, CX,CY, Sigma
 
 	def generate_synthetic_data( self, shape = None, sparsity = None, method = "default_normal_linear_spike" ):
 		"""
@@ -1968,6 +2107,41 @@ class Strudel:
 				scatter(v,x)
 		else:
 			pass 
+
+	#=============================================================#
+	# Springbox Methods
+	#=============================================================#
+
+	def epsilon_window( self, X ):
+		"""
+		Calculates the epsilon window e(X || Y) under the closure operator C(.)
+		
+		X is a `D x N` matrix. 
+		"""
+		
+		assert( X.ndim > 1 ), "X must have more than one feature."
+
+		iRow, iCol = X.shape
+
+		RX = numpy.argsort( X )
+		CX = self.closure(X, axis = 1)
+		RCX = numpy.argsort( CX )
+
+		#t1 = self.association(X,Y, strMethod = "kendalltau")
+		#t2 = self.association(RCX,RCY, strMethod = "kendalltau")
+
+		aOut = [] 
+
+		for i,pRow in enumerate(RX):
+			aRow = [] 
+			for j in range(iCol):
+				iCurrent = numpy.where( pRow == j )[0][0]
+				iNext = numpy.where( RCX[i] == j )[0][0]
+				epsilon = (iNext - iCurrent + 1) * 1.0/iCol 
+				aRow.append(epsilon)
+			aOut.append(aRow)
+
+		return aOut 
 
 
 	#=============================================================#
@@ -2276,7 +2450,9 @@ class Strudel:
 
 		roc_auc: float
 			AUC value 
-		"""
+		""" 
+
+		assert( len(true_labels) == len(prob_vec) ), "Length of true labels and probability vector must be the same."
 
 		fpr, tpr, thresholds = self.get_fpr_tpr_thresholds( true_labels, prob_vec )		
 		roc_auc = self.plot_roc( fpr, tpr, strTitle = strTitle, astrLabel = astrLabel, strFile = strFile )
