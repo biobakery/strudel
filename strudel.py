@@ -2127,6 +2127,9 @@ class Strudel:
 		CX = self.closure(X, axis = 1)
 		RCX = numpy.argsort( CX )
 
+		#print "X is", X
+		#print "CX is", CX
+
 		#t1 = self.association(X,Y, strMethod = "kendalltau")
 		#t2 = self.association(RCX,RCY, strMethod = "kendalltau")
 
@@ -2137,11 +2140,12 @@ class Strudel:
 			for j in range(iCol):
 				iCurrent = numpy.where( pRow == j )[0][0]
 				iNext = numpy.where( RCX[i] == j )[0][0]
+				#print iCurrent, iNext
 				epsilon = (iNext - iCurrent + 1) * 1.0/iCol 
 				aRow.append(epsilon)
-			aOut.append(aRow)
+			aOut.append(numpy.abs(aRow))
 
-		return aOut 
+		return array(aOut)
 
 
 	#=============================================================#
