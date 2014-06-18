@@ -838,8 +838,8 @@ class Strudel:
 		bEmpty = self._is_empty( pObject )
 
 		## Enforce non-empty invariance 
-		if bEmpty:
-			raise Exception(strErrorMessage)
+		#if bEmpty:
+		#	raise Exception(strErrorMessage)
 
 		## Assume that pObject is non-empty 
 		try:
@@ -1167,7 +1167,8 @@ class Strudel:
 
 				aDist = [__permute(X,Y, pAssociation=pAssociation) for _ in range(iIter)] ##array containing finite estimation of sampling distribution 
 				
-				fPercentile = scipy.stats.percentileofscore( aDist, fAssociation, kind="strict" ) ##source: Good 2000 
+				fPercentile = scipy.stats.percentileofscore( aDist, fAssociation, kind="strict" ) 
+				##source: Good 2000 
 				### \frac{ \sharp\{\rho(\hat{X},Y) \geq \rho(X,Y) \} +1  }{ k + 1 }
 				### k number of iterations, \hat{X} is randomized version of X 
 				### PercentileofScore function ('strict') is essentially calculating the additive inverse (1-x) of the wanted quantity above 
@@ -1327,6 +1328,13 @@ class Strudel:
 	#========================================#
 	# Base generation 
 	#========================================#
+
+	def randnoise( self, shape ):
+		"""
+		Generate random Gaussian noise
+		"""
+
+		return norm(0,self.noise_param).rvs( shape )
 
 	def randvec( self, shape = None, dist = None ):
 		"""
@@ -1519,7 +1527,23 @@ class Strudel:
 	# Spike functions 
 	#=============================================================#
 
+	def spike_mean( self, X ):
+		
+		assert( X.ndim > 1 )
 
+		iRow, iCol = X.shape
+
+		Y = self.randmat( shape = (iRow,iCol) )
+
+		N = iRow 
+
+		mean_vec = 1.0/N* reduce( lambda x,y: x+y, X )
+
+		Y += mean_vec 
+		A = numpy.ones( (iRow,iRow) )
+
+		return Y,A 
+		
 	def spike_glm( self, X, K, strLinkage = "linear", sparsity = 1.0, bAdjacency = True ):
 		"""
 		Introduce spikes between variables using glm linkage.  
@@ -1809,6 +1833,83 @@ class Strudel:
 		else:
 			return None 
 
+
+	def col_block( self, shape, strMethod = "easy" ):
+		"""
+		Collinear block covariance structure, no structure apriori on Y
+		
+		Can try colinear structure, or featurewise spike 
+
+		strMethod: str 
+			{easy,hard}
+		"""
+
+		#def _block( D, N, strMethod = "easy" ):
+		#	if strMethod == "hard":
+		##		return None
+		#	elif strMethod == "easy":
+		#		X = numpy.zeros((D,N))
+
+
+		#iRow, iCol = shape 
+
+		#iDiv = numpy.floor(numpy.sqrt(iRow))
+
+		#X = numpy.zeros((iRow,iCol))
+		#Y = self.randmat(shape=(iRow,iCol))
+
+		#aiDiv = numpy.linspace(0,iRow,iDiv+1)
+		#for i in aiDiv:
+			#if i >= len(aiDiv)-1:
+			#	break
+			#else:
+				#for j in range(aiDiv[i],aiDiv[i+1]):
+
+	def cholesky_block( self, D, N, B ):
+		"""
+			D: int
+				number of features
+
+			N: int
+				number of samples 
+
+			B: int
+				number of blocks 
+		"""
+		
+
+		iSizeblock, iRemainder = divmod(D,B)
+
+		aCut = numpy.array_split(numpy.arange(D),B)
+
+		aSize = map(len,aCut)
+
+		S = [numpy.tril(self.randmat(shape=(s,s))) for s in aSize]
+
+		chol = scipy.linalg.block_diag(*S)
+
+		#print cov
+		#print linalg.det(cov)
+		cov = np.dot(chol,chol.T)
+		#print cov
+		#print linalg.det(cov)
+		 
+		X = np.random.multivariate_normal([0]*D, cov, N).T
+
+		A = (cov > 0.0).astype(int)
+
+		### draw Y iid 
+		Y = self.randmat(shape=(D,N)) 
+
+		for cut in aCut:
+			Xcut = X[cut]
+
+			### Spike in the mean
+			Y[cut] = Y[cut] + 1/float(Xcut.shape[0]) * Xcut 
+
+		return X,Y,A
+		
+
 	def generate_block( self, D, N, preset = "easy", spike_type = "line" ):
 		"""
 		Generate block covariance structure within each dataset (e.g. X, Y)
@@ -1826,7 +1927,7 @@ class Strudel:
 		Returns
 		--------------
 
-			X, Simga, C 
+			X, Sigma, C 
 
 		Notes
 		---------------
