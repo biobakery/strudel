@@ -1865,7 +1865,7 @@ class Strudel:
 			#else:
 				#for j in range(aiDiv[i],aiDiv[i+1]):
 
-	def cholesky_block( self, D, N, B ):
+	def cholesky_block( self, D, N, B, fVal = 0.5, Beta = 0.5 ):
 		"""
 			D: int
 				number of features
@@ -1876,9 +1876,182 @@ class Strudel:
 			B: int
 				number of blocks 
 		"""
-		
 
-		iSizeblock, iRemainder = divmod(D,B)
+
+		aCut = numpy.array_split(numpy.arange(D),B)
+
+		aSize = map(len,aCut)
+
+		S = [numpy.tril(numpy.reshape([fVal]*(s*s),(s,s))) for s in aSize]
+
+		chol = scipy.linalg.block_diag(*S)
+
+		#print cov
+		#print linalg.det(cov)
+		cov = numpy.dot(chol,chol.T)
+		#print cov
+		#print linalg.det(cov)
+		 
+		X = numpy.random.multivariate_normal([0]*D, cov, N).T
+
+		A = (cov > 0.0).astype(int)
+
+		### draw Y iid 
+		Y = self.randmat(shape=(D,N)) 
+
+		for cut in aCut:
+			Xcut = X[cut]
+
+			### Spike in the mean
+			Y[cut] = Y[cut] + float(Beta) * 1/float(Xcut.shape[0]) * Xcut + self.noise_distribution( self.noise_param ).rvs( Xcut.shape )
+
+		return X,Y,A
+
+	def cholesky_nlblock( self, D, N, B, fVal = 0.5, Beta = 0.5, link = "parabola" ):
+		"""
+			D: int
+				number of features
+
+			N: int
+				number of samples 
+
+			B: int
+				number of blocks 
+		"""
+
+
+		aCut = numpy.array_split(numpy.arange(D),B)
+
+		aSize = map(len,aCut)
+
+		S = [numpy.tril(numpy.reshape([fVal]*(s*s),(s,s))) for s in aSize]
+
+		chol = scipy.linalg.block_diag(*S)
+
+		#print cov
+		#print linalg.det(cov)
+		cov = numpy.dot(chol,chol.T)
+		#print cov
+		#print linalg.det(cov)
+		 
+		X = numpy.random.multivariate_normal([0]*D, cov, N).T
+
+		A = (cov > 0.0).astype(int)
+
+		### draw Y iid 
+		Y = self.randmat(shape=(D,N)) 
+
+		pFun = self.hash_spike_method[link]
+		for cut in aCut:
+			Xcut = X[cut]
+
+			### Spike in the mean
+
+			Y[cut] = pFun(Y[cut] + float(Beta) * 1/float(Xcut.shape[0]) * Xcut + + self.noise_distribution( self.noise_param ).rvs( Xcut.shape ))
+
+		return X,Y,A
+		
+	def double_cholesky_block( self, D, N, B, fVal = 0.5, Beta = 0.5 ):
+		"""
+			D: int
+				number of features
+
+			N: int
+				number of samples 
+
+			B: int
+				number of blocks 
+		"""
+
+
+		aCut = numpy.array_split(numpy.arange(D),B)
+
+		aSize = map(len,aCut)
+
+		Sx = [numpy.tril(numpy.reshape([fVal]*(s*s),(s,s))) for s in aSize]
+
+		cholx = scipy.linalg.block_diag(*Sx)
+
+		#print cov
+		#print linalg.det(cov)
+		covx = numpy.dot(cholx,cholx.T)
+		#print cov
+		#print linalg.det(cov)
+		 
+		X = numpy.random.multivariate_normal([0]*D, covx, N).T
+		
+		A = (covx > 0.0).astype(int)
+		
+		Sy = [numpy.tril(numpy.reshape([fVal]*(s*s),(s,s))) for s in aSize]
+		choly = scipy.linalg.block_diag(*Sy)
+		covy = numpy.dot(choly,choly.T)
+
+		Y = numpy.random.multivariate_normal([0]*D, covy, N).T
+
+		for cut in aCut:
+			Xcut = X[cut]
+
+			### Spike in the mean
+			Y[cut] = Y[cut] + float(Beta) * 1/float(Xcut.shape[0]) * Xcut + self.noise_distribution( self.noise_param ).rvs( Xcut.shape )
+
+		return X,Y,A
+
+	def double_cholesky_nlblock( self, D, N, B, fVal = 0.5, Beta = 0.5, link ="parabola" ):
+		"""
+			D: int
+				number of features
+
+			N: int
+				number of samples 
+
+			B: int
+				number of blocks 
+		"""
+
+		pFun = self.hash_spike_method[link]
+		aCut = numpy.array_split(numpy.arange(D),B)
+
+		aSize = map(len,aCut)
+
+		Sx = [numpy.tril(numpy.reshape([fVal]*(s*s),(s,s))) for s in aSize]
+
+		cholx = scipy.linalg.block_diag(*Sx)
+
+		#print cov
+		#print linalg.det(cov)
+		covx = numpy.dot(cholx,cholx.T)
+		#print cov
+		#print linalg.det(cov)
+		 
+		X = numpy.random.multivariate_normal([0]*D, covx, N).T
+		
+		A = (covx > 0.0).astype(int)
+		
+		Sy = [numpy.tril(numpy.reshape([fVal]*(s*s),(s,s))) for s in aSize]
+		choly = scipy.linalg.block_diag(*Sy)
+		covy = numpy.dot(choly,choly.T)
+
+		Y = numpy.random.multivariate_normal([0]*D, covy, N).T
+
+		for cut in aCut:
+			Xcut = X[cut]
+
+			### Spike in the mean
+			Y[cut] = pFun(Y[cut] + float(Beta) * 1/float(Xcut.shape[0]) * Xcut + self.noise_distribution( self.noise_param ).rvs( Xcut.shape ))
+
+		return X,Y,A
+
+	def random_cholesky_block( self, D, N, B ):
+		"""
+			D: int
+				number of features
+
+			N: int
+				number of samples 
+
+			B: int
+				number of blocks 
+		"""
 
 		aCut = numpy.array_split(numpy.arange(D),B)
 
@@ -1890,11 +2063,11 @@ class Strudel:
 
 		#print cov
 		#print linalg.det(cov)
-		cov = np.dot(chol,chol.T)
+		cov = numpy.dot(chol,chol.T)
 		#print cov
 		#print linalg.det(cov)
 		 
-		X = np.random.multivariate_normal([0]*D, cov, N).T
+		X = numpy.random.multivariate_normal([0]*D, cov, N).T
 
 		A = (cov > 0.0).astype(int)
 
@@ -1908,7 +2081,53 @@ class Strudel:
 			Y[cut] = Y[cut] + 1/float(Xcut.shape[0]) * Xcut 
 
 		return X,Y,A
+
+	
+	def random_double_cholesky_block( self, D, N, B ):
+		"""
+			D: int
+				number of features
+
+			N: int
+				number of samples 
+
+			B: int
+				number of blocks 
+		"""
+
+
+		aCut = numpy.array_split(numpy.arange(D),B)
+
+		aSize = map(len,aCut)
+
+		Sx = [numpy.tril(self.randmat(shape=(s,s))) for s in aSize]
+
+		cholx = scipy.linalg.block_diag(*Sx)
+
+		#print cov
+		#print linalg.det(cov)
+		covx = numpy.dot(cholx,cholx.T)
+		#print cov
+		#print linalg.det(cov)
+		 
+		X = numpy.random.multivariate_normal([0]*D, covx, N).T
 		
+		A = (covx > 0.0).astype(int)
+		
+		Sy = [numpy.tril(self.randmat(shape=(s,s))) for s in aSize]
+		choly = scipy.linalg.block_diag(*Sy)
+		covy = numpy.dot(choly,choly.T)
+
+		Y = numpy.random.multivariate_normal([0]*D, covy, N).T
+
+		for cut in aCut:
+			Xcut = X[cut]
+
+			### Spike in the mean
+			Y[cut] = Y[cut] + 1/float(Xcut.shape[0]) * Xcut 
+
+		return X,Y,A	
+
 
 	def generate_block( self, D, N, preset = "easy", spike_type = "line" ):
 		"""
