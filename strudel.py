@@ -215,7 +215,7 @@ class Strudel:
 										"anova": scipy.stats.f_oneway, 
 										"x2": scipy.stats.chisquare,
 										"fisher": scipy.stats.fisher_exact, 
-										"norm_mi": halla.distance.norm_mi, 
+										"nmi": halla.distance.nmi, 
 										"mi": halla.distance.mi,
 										"kendalltau": scipy.stats.kendalltau,
 										"halla": lambda X,Y: halla.HAllA(X,Y).run( ),
@@ -227,7 +227,7 @@ class Strudel:
 										"anova": False,
 										"x2": False,
 										"fisher": False,
-										"norm_mi": True,
+										"nmi": True,
 										"mi": True,
 										"halla": False,
 										"kendalltau": False, 
@@ -1033,7 +1033,7 @@ class Strudel:
 	# Randomization methods 
 	#========================================#
 
-	def _permutation_test_association( pArray1, pArray2, strMethod = "norm_mi" ):
+	def _permutation_test_association( pArray1, pArray2, strMethod = "nmi" ):
 		"""
 		* Make sure arrays are already normalized 
 		* Make sure that the arrays are 1-dimensional 
@@ -1051,14 +1051,14 @@ class Strudel:
 
 
 
-	def _permutation_test_association_many( pArray1, pArray2, iIter = 100, strMethod = "norm_mi", strReduceMethod = "pca" ):
+	def _permutation_test_association_many( pArray1, pArray2, iIter = 100, strMethod = "nmi", strReduceMethod = "pca" ):
 		"""
 		Handles many-to-many permutation testing 
 
 		Calls _permutation_test_association
 		"""
 
-	def permutation_test_association( pArray1, pArray2, iIter = 100, strMethod = "norm_mi", strReduceMethod = "pca" ):
+	def permutation_test_association( pArray1, pArray2, iIter = 100, strMethod = "nmi", strReduceMethod = "pca" ):
 		"""
 		Master wrapper that calls _permutation_test_association and _permutation_test_association_many
 
@@ -1103,7 +1103,7 @@ class Strudel:
 		# Automatically determine if have to be discretized? 
 		#hashDiscretize = {"pearson": False, "spearman": False, 
 		#				"mi": True, "mid": True, "adj_mi":True, 
-		#				"adj_mid": True, "norm_mi": True, "norm_mid": True }
+		#				"adj_mid": True, "nmi": True, "nmid": True }
 
 		bDiscretize = bNormalize ##BUGBUG fix this later when there are more normalization methods other than discretization 
 
@@ -2707,9 +2707,9 @@ class Strudel:
 		
 		hashDiscretize = {"pearson": False, "spearman": False, 
 						"mi": True, "mid": True, "adj_mi":True, 
-						"adj_mid": True, "norm_mi": True, }
+						"adj_mid": True, "nmi": True, }
 
-		hashMethods = {"pearson": halla.distance.cor, "norm_mi": halla.distance.norm_mi,
+		hashMethods = {"pearson": halla.distance.cor, "nmi": halla.distance.nmi,
 						"mi": halla.distance.mi, }
 
 		pFunDiscretize = halla.stats.discretize 
@@ -2971,7 +2971,7 @@ def simulateData(NumberOfFeatures=8, numberOfSamples=10000, numberOfBlocks=2, cl
     # f.write(str(data.T))
     # f.close()
     data = data.T
-                
+    '''            
     f = open('syntheticData.txt', 'w')
     f.write(' ')
     for i in range(len(data[1])):
@@ -2985,7 +2985,8 @@ def simulateData(NumberOfFeatures=8, numberOfSamples=10000, numberOfBlocks=2, cl
             f.write(str(data[i, j]))
             f.write(' ')
         f.write('\n')
-    f.close() 
+    f.close()
+    ''' 
     return data   
     # with open('syntheticData.txt', 'r') as fin:
         # print fin.read()
@@ -3024,3 +3025,4 @@ def writeData(data=None, name=None, rowheader=True, colheader=False):
 	            f.write('\t')
 	    f.write('\n')
 	f.close() 
+	
