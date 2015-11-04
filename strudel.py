@@ -70,7 +70,8 @@ from numpy import array
 import sklearn
 import csv 
 import sys 
-import itertools 
+import itertools
+import math 
 
 ####### namespace for distributions 
 from scipy.stats import invgamma, norm, uniform, logistic, gamma, lognorm, beta, pareto, pearsonr  
@@ -1950,7 +1951,68 @@ class Strudel:
 			Y[cut] = pFun(Y[cut] + float(Beta) * 1/float(Xcut.shape[0]) * Xcut + + self.noise_distribution( self.noise_param ).rvs( Xcut.shape ))
 
 		return X,Y,A
-		
+	def double_cholesky_block_uniform( self, D, N, B, fVal = 0.5, Beta = 0.5, association_type = 'parabola' ):
+		"""
+			D: int
+				number of features
+
+			N: int
+				number of samples 
+
+			B: int
+				number of blocks 
+		"""
+
+		from itertools import product
+		aCut = numpy.array_split(numpy.arange(D),B)
+
+		aSize = map(len,aCut)
+
+		Sx = [numpy.tril(numpy.reshape([fVal]*(s*s),(s,s))) for s in aSize]
+
+		cholx = scipy.linalg.block_diag(*Sx)
+
+		#print cov
+		#print linalg.det(cov)
+		covx = numpy.dot(cholx,cholx.T)
+		#print cov
+		#print linalg.det(cov)
+		#X = numpy.random.multivariate_normal([0]*D, covx, N).T
+		X = numpy.random.uniform(low=-2,high=2,size=(N,D)).T
+		Y = numpy.random.uniform(low=-1,high=1,size=(N,D)).T
+
+		blockSize = int(D/B)
+		print D, B, blockSize
+		for i in range(0,D,blockSize):
+			for j in range(i,i+blockSize):
+				if j < D:
+					X[j]= [X[i,k]  + numpy.random.normal(0,.1,1) for k in range(len(X[j]))]
+		A = (covx > 0.0).astype(int)
+		Y = numpy.random.uniform(low=-1,high=1,size=(N,D)).T
+		if association_type=='parabola':
+			for i,j in product(range(len(Y)), range(len(Y[0]))):
+				Y[i,j] =math.pow(X[i,j], 2) + numpy.random.normal(0,.1,1)# math.sin(X[i, j]) + np.random.normal(0,.1,1)# math.pow(X[i,j], 3) + + np.random.normal(0,.1,1)#math.log(X[i,j], 2) + np.random.normal(0,.1,1) # 
+		elif association_type=='cubic':
+			for i,j in product(range(len(Y)), range(len(Y[0]))):
+				Y[i,j] =math.pow(X[i,j], 3) + numpy.random.normal(0,.1,1)# math.sin(X[i, j]) + np.random.normal(0,.1,1)# math.pow(X[i,j], 3) + + np.random.normal(0,.1,1)#math.log(X[i,j], 2) + np.random.normal(0,.1,1) # 
+		elif association_type=='sin':
+			for i,j in product(range(len(Y)), range(len(Y[0]))):
+				Y[i,j] =math.sin(X[i,j]) + np.random.normal(0,.1,1)# math.sin(X[i, j]) + np.random.normal(0,.1,1)# math.pow(X[i,j], 3) + + np.random.normal(0,.1,1)#math.log(X[i,j], 2) + np.random.normal(0,.1,1) # 
+		elif association_type=='log':
+			for i,j in product(range(len(Y)), range(len(Y[0]))):
+				X[i,j] = math.fabs(X[i,j])
+				Y[i,j] =math.log(X[i,j], 2) + np.random.normal(0,.1,1)# 
+		Sy = [numpy.tril(numpy.reshape([fVal]*(s*s),(s,s))) for s in aSize]
+		choly = scipy.linalg.block_diag(*Sy)
+		covy = numpy.dot(choly,choly.T)
+
+		'''for cut in aCut:
+			Xcut = X[cut]
+
+			### Spike in the mean
+			Y[cut] = Y[cut] + float(Beta) * 1/float(Xcut.shape[0]) * Xcut + self.noise_distribution( self.noise_param ).rvs( Xcut.shape )
+		'''
+		return X,Y,A	
 	def double_cholesky_block( self, D, N, B, fVal = 0.5, Beta = 0.5 ):
 		"""
 			D: int
@@ -1979,13 +2041,11 @@ class Strudel:
 		#print linalg.det(cov)
 		 
 		X = numpy.random.multivariate_normal([0]*D, covx, N).T
-		
 		A = (covx > 0.0).astype(int)
 		
 		Sy = [numpy.tril(numpy.reshape([fVal]*(s*s),(s,s))) for s in aSize]
 		choly = scipy.linalg.block_diag(*Sy)
 		covy = numpy.dot(choly,choly.T)
-
 		Y = numpy.random.multivariate_normal([0]*D, covy, N).T
 
 		for cut in aCut:
