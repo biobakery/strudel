@@ -1982,7 +1982,7 @@ class Strudel:
 		Y = numpy.random.uniform(low=-1,high=1,size=(N,D)).T
 
 		blockSize = int(D/B)
-		print D, B, blockSize
+		#print D, B, blockSize
 		for i in range(0,D,blockSize):
 			for j in range(i,i+blockSize):
 				if j < D:
