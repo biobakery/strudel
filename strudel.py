@@ -1997,11 +1997,11 @@ class Strudel:
 				Y[i,j] =math.pow(X[i,j], 3) + numpy.random.normal(0,.1,1)# math.sin(X[i, j]) + np.random.normal(0,.1,1)# math.pow(X[i,j], 3) + + np.random.normal(0,.1,1)#math.log(X[i,j], 2) + np.random.normal(0,.1,1) # 
 		elif association_type=='sin':
 			for i,j in product(range(len(Y)), range(len(Y[0]))):
-				Y[i,j] =math.sin(X[i,j]) + np.random.normal(0,.1,1)# math.sin(X[i, j]) + np.random.normal(0,.1,1)# math.pow(X[i,j], 3) + + np.random.normal(0,.1,1)#math.log(X[i,j], 2) + np.random.normal(0,.1,1) # 
+				Y[i,j] =math.sin(X[i,j]) + numpy.random.normal(0,.1,1)# math.sin(X[i, j]) + np.random.normal(0,.1,1)# math.pow(X[i,j], 3) + + np.random.normal(0,.1,1)#math.log(X[i,j], 2) + np.random.normal(0,.1,1) # 
 		elif association_type=='log':
 			for i,j in product(range(len(Y)), range(len(Y[0]))):
 				X[i,j] = math.fabs(X[i,j])
-				Y[i,j] =math.log(X[i,j], 2) + np.random.normal(0,.1,1)# 
+				Y[i,j] =math.log(X[i,j], 2) + numpy.random.normal(0,.1,1)# 
 		Sy = [numpy.tril(numpy.reshape([fVal]*(s*s),(s,s))) for s in aSize]
 		choly = scipy.linalg.block_diag(*Sy)
 		covy = numpy.dot(choly,choly.T)
