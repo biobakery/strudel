@@ -1978,40 +1978,41 @@ class Strudel:
 		#print cov
 		#print linalg.det(cov)
 		#X = numpy.random.multivariate_normal([0]*D, covx, N).T
-		X = numpy.random.uniform(low=-2,high=2,size=(N,D)).T
-		Y = numpy.random.uniform(low=-1,high=1,size=(N,D)).T
+		X = numpy.random.uniform(low=-fVal,high=fVal,size=(N,D)).T
+		Y = numpy.random.uniform(low=-fVal,high=fVal,size=(N,D)).T
 
 		blockSize = int(D/B)
 		#print D, B, blockSize
 		for i in range(0,D,blockSize):
 			for j in range(i,i+blockSize):
 				if j < D:
-					X[j]= [X[i,k]  + numpy.random.normal(0,.1,1) for k in range(len(X[j]))]
+					X[j]= [X[i,k]  + numpy.random.normal(0,Beta,1) for k in range(len(X[j]))]
 		A = (covx > 0.0).astype(int)
-		Y = numpy.random.uniform(low=-1,high=1,size=(N,D)).T
+		Y = numpy.random.uniform(low=-fVal,high=fVal,size=(N,D)).T
 		if association_type=='parabola':
 			for i,j in product(range(len(Y)), range(len(Y[0]))):
-				Y[i,j] =math.pow(X[i,j], 2) + numpy.random.normal(0,.1,1)# math.sin(X[i, j]) + np.random.normal(0,.1,1)# math.pow(X[i,j], 3) + + np.random.normal(0,.1,1)#math.log(X[i,j], 2) + np.random.normal(0,.1,1) # 
+				Y[i,j] =math.pow(X[i,j], 2) + numpy.random.normal(0,Beta/4,1)# math.sin(X[i, j]) + np.random.normal(0,.1,1)# math.pow(X[i,j], 3) + + np.random.normal(0,.1,1)#math.log(X[i,j], 2) + np.random.normal(0,.1,1) # 
 		elif association_type=='cubic':
 			for i,j in product(range(len(Y)), range(len(Y[0]))):
-				Y[i,j] =math.pow(X[i,j], 3) + numpy.random.normal(0,.1,1)# math.sin(X[i, j]) + np.random.normal(0,.1,1)# math.pow(X[i,j], 3) + + np.random.normal(0,.1,1)#math.log(X[i,j], 2) + np.random.normal(0,.1,1) # 
+				Y[i,j] =math.pow(X[i,j], 3) + numpy.random.normal(0,Beta/4,1)# math.sin(X[i, j]) + np.random.normal(0,.1,1)# math.pow(X[i,j], 3) + + np.random.normal(0,.1,1)#math.log(X[i,j], 2) + np.random.normal(0,.1,1) # 
 		elif association_type=='sin':
 			for i,j in product(range(len(Y)), range(len(Y[0]))):
-				Y[i,j] =math.sin(X[i,j]) + numpy.random.normal(0,.1,1)# math.sin(X[i, j]) + np.random.normal(0,.1,1)# math.pow(X[i,j], 3) + + np.random.normal(0,.1,1)#math.log(X[i,j], 2) + np.random.normal(0,.1,1) # 
+				Y[i,j] =math.sin(X[i,j]*math.pi) + numpy.random.normal(0,Beta/4,1)# math.sin(X[i, j]) + np.random.normal(0,.1,1)# math.pow(X[i,j], 3) + + np.random.normal(0,.1,1)#math.log(X[i,j], 2) + np.random.normal(0,.1,1) # 
 		elif association_type=='log':
 			for i,j in product(range(len(Y)), range(len(Y[0]))):
 				X[i,j] = math.fabs(X[i,j])
-				Y[i,j] =math.log(X[i,j], 2) + numpy.random.normal(0,.1,1)# 
+				Y[i,j] =math.log(X[i,j], 2) + numpy.random.normal(0,Beta/4,1)# 
 		Sy = [numpy.tril(numpy.reshape([fVal]*(s*s),(s,s))) for s in aSize]
+		
 		choly = scipy.linalg.block_diag(*Sy)
 		covy = numpy.dot(choly,choly.T)
-
-		'''for cut in aCut:
+		if association_type=='linear':
+			for i,j in product(range(len(Y)), range(len(Y[0]))):
+				Y[i,j] =math.pow(X[i,j], 2) + numpy.random.normal(0,Beta/4,1)
+		for cut in aCut:
 			Xcut = X[cut]
-
 			### Spike in the mean
 			Y[cut] = Y[cut] + float(Beta) * 1/float(Xcut.shape[0]) * Xcut + self.noise_distribution( self.noise_param ).rvs( Xcut.shape )
-		'''
 		return X,Y,A	
 	def double_cholesky_block( self, D, N, B, fVal = 0.5, Beta = 0.5 ):
 		"""
