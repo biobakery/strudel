@@ -1977,18 +1977,17 @@ class Strudel:
 		covx = numpy.dot(cholx,cholx.T)
 		#print cov
 		#print linalg.det(cov)
-		#X = numpy.random.multivariate_normal([0]*D, covx, N).T
-		X = numpy.random.uniform(low=-fVal,high=fVal,size=(N,D)).T
-		Y = numpy.random.uniform(low=-fVal,high=fVal,size=(N,D)).T
-
-		blockSize = int(D/B)
+		X = numpy.random.multivariate_normal([0]*D, covx, N).T
+		Y = numpy.random.multivariate_normal([0]*D, covx, N).T
+		blockSize = int(round(D/B+.5))
 		#print D, B, blockSize
 		for i in range(0,D,blockSize):
 			for j in range(i,i+blockSize):
 				if j < D:
-					X[j]= [X[i,k]  + numpy.random.normal(0,Beta,1) for k in range(len(X[j]))]
+					X[j]= [X[i,k]  + numpy.random.normal(0,.1,1) for k in range(len(X[j]))]
+		
 		A = (covx > 0.0).astype(int)
-		Y = numpy.random.uniform(low=-fVal,high=fVal,size=(N,D)).T
+		#Y = numpy.random.uniform(low=-fVal,high=fVal,size=(N,D)).T
 		if association_type=='parabola':
 			for i,j in product(range(len(Y)), range(len(Y[0]))):
 				Y[i,j] =math.pow(X[i,j], 2) + numpy.random.normal(0,Beta/4,1)# math.sin(X[i, j]) + np.random.normal(0,.1,1)# math.pow(X[i,j], 3) + + np.random.normal(0,.1,1)#math.log(X[i,j], 2) + np.random.normal(0,.1,1) # 
@@ -1997,22 +1996,186 @@ class Strudel:
 				Y[i,j] =math.pow(X[i,j], 3) + numpy.random.normal(0,Beta/4,1)# math.sin(X[i, j]) + np.random.normal(0,.1,1)# math.pow(X[i,j], 3) + + np.random.normal(0,.1,1)#math.log(X[i,j], 2) + np.random.normal(0,.1,1) # 
 		elif association_type=='sin':
 			for i,j in product(range(len(Y)), range(len(Y[0]))):
-				Y[i,j] =math.sin(X[i,j]*math.pi) + numpy.random.normal(0,Beta/4,1)# math.sin(X[i, j]) + np.random.normal(0,.1,1)# math.pow(X[i,j], 3) + + np.random.normal(0,.1,1)#math.log(X[i,j], 2) + np.random.normal(0,.1,1) # 
+				Y[i,j] =math.sin(X[i,j]) + numpy.random.normal(0,Beta/4,1)# math.sin(X[i, j]) + np.random.normal(0,.1,1)# math.pow(X[i,j], 3) + + np.random.normal(0,.1,1)#math.log(X[i,j], 2) + np.random.normal(0,.1,1) # 
 		elif association_type=='log':
 			for i,j in product(range(len(Y)), range(len(Y[0]))):
 				X[i,j] = math.fabs(X[i,j])
-				Y[i,j] =math.log(X[i,j], 2) + numpy.random.normal(0,Beta/4,1)# 
+				Y[i,j] =math.log(X[i,j]) + numpy.random.normal(0,Beta/4,1)# 
 		Sy = [numpy.tril(numpy.reshape([fVal]*(s*s),(s,s))) for s in aSize]
 		
 		choly = scipy.linalg.block_diag(*Sy)
 		covy = numpy.dot(choly,choly.T)
 		if association_type=='linear':
+			slope = numpy.random.random_sample()
 			for i,j in product(range(len(Y)), range(len(Y[0]))):
-				Y[i,j] =math.pow(X[i,j], 2) + numpy.random.normal(0,Beta/4,1)
+				Y[i,j] = (X[i,j] + numpy.random.normal(.0,.3,1)) *slope
+				
 		for cut in aCut:
 			Xcut = X[cut]
 			### Spike in the mean
 			Y[cut] = Y[cut] + float(Beta) * 1/float(Xcut.shape[0]) * Xcut + self.noise_distribution( self.noise_param ).rvs( Xcut.shape )
+		return X,Y,A
+	def random_dataset( self, D, N,):
+		"""
+			D: int
+				number of features
+
+			N: int
+				number of samples 
+
+			B: int
+				number of blocks 
+		"""
+		X = numpy.random.uniform(low=-1,high=1 ,size=(D,N))
+		Y = numpy.random.uniform(low=-1,high=1,size=(D,N))
+		A = numpy.zeros( (D,D) )
+		return X,Y,A	
+	def imbalanced_synthetic_dataset_uniform(self, D, N, B, within_noise = 0.5, between_noise = 0.5, association_type = 'parabola' ):
+		"""
+			D: int
+				number of features
+
+			N: int
+				number of samples 
+
+			B: int
+				number of blocks 
+		"""
+		
+		X = numpy.random.uniform(low=-1,high=1 ,size=(D,N))
+		common_base = numpy.random.uniform(low=-1,high=1 ,size=(B+1,N))
+		X_base = numpy.random.uniform(low=-1,high=1 ,size=(D,N))
+		Y_base = numpy.random.uniform(low=-1,high=1 ,size=(D,N))
+		Y = numpy.random.uniform(low=-1,high=1,size=(D,N))
+		A = numpy.zeros( (D,D) )
+		blockSize = int(round(D/B+.5))
+		#print D, B, blockSize
+		'''for i in range(0,D,blockSize):
+			for j in range(i,i+blockSize):
+				if j < D:
+					X[j]= [X[i,k]  + numpy.random.normal(0,.1,1) for k in range(len(X[j]))]
+		'''
+		number_associated_blocks = max([int(B/3) , 1])
+		assoc1 = [[] for i in range(number_associated_blocks)]
+		assoc2 = [[] for i in range(number_associated_blocks)]
+		
+		from random import randrange
+		for i in range(D):
+			r = randrange(0,B)
+			X[i]= [X_base[r,k]  + within_noise * numpy.random.uniform(low=-1,high=1 ,size=1) for k in range(N)]
+			
+		for i in range(D):
+			r = randrange(0,B)
+			Y[i]= [Y_base[r,k]  + within_noise * numpy.random.uniform(low=-1,high=1 ,size=1) for k in range(N)]
+			
+		r = numpy.random.randint(D, size=int(blockSize* number_associated_blocks))
+		for i in r:
+			l= randrange(0,int(number_associated_blocks))
+			X[i]= [common_base[l][k] +  within_noise * numpy.random.uniform(low=-1,high=1 ,size=1) for k in range(N)]
+			assoc1[l].append(i)
+		
+		noise_num = numpy.random.randint(N, size=int(N*between_noise))
+		for i in r:
+			l= randrange(0,int(number_associated_blocks))
+			#slope = 1.0 +numpy.random.random_sample()#slope = numpy.random.random_sample()
+			if association_type == "parabola":
+				Y[i]= [common_base[l][k] * common_base[l][k]  + within_noise * math.sqrt(math.fabs(numpy.random.uniform(low=-1,high=1 ,size=1)))  for k in range(N)]
+				for index,b in enumerate(noise_num):
+					Y[i][b] = Y[i][index]
+				assoc2[l].append(i)
+			elif association_type == "linear":
+				Y[i]= [common_base[l][k] + within_noise * numpy.random.uniform(low=-1,high=1 ,size=1)  for k in range(N)]
+				for index,b in enumerate(noise_num):
+					Y[i][b] = Y[i][index]
+				assoc2[l].append(i)
+
+		for a in range(number_associated_blocks):
+			#print assoc1[a], assoc2[a]
+			for i, j in itertools.product(assoc1[a], assoc2[a]):
+				A[i][j] = 1
+		return X,Y,A
+	def balanced_synthetic_dataset_uniform( self, D, N, B, within_noise = 0.5, between_noise = 0.1, association_type = 'parabola' ):
+		"""
+			D: int
+				number of features
+
+			N: int
+				number of samples 
+
+			B: int
+				number of blocks 
+		"""
+		X = numpy.random.uniform(low=-1,high=1 ,size=(D,N))
+		common_base = numpy.random.uniform(low=-1,high=1 ,size=(B+1,N))
+		Y = numpy.random.uniform(low=-1,high=1,size=(D,N))
+		A = numpy.zeros( (len(X),len(Y)) )
+		blockSize = int(round(D/B+.5))
+		print D, B, blockSize
+		assoc = [[] for i in range((B+1))]
+		l = 0
+		for i in range(0,D,blockSize):
+			for j in range(i,i+blockSize):
+				if j < D:
+					X[j]= [common_base[l,k]  + within_noise * numpy.random.uniform(low=-1,high=1 ,size=1) for k in range(N)]
+					assoc[l].append(j)
+			l += 1
+		from random import randrange
+		l= 0
+		for i in range(0,D,blockSize):
+			noise_num = numpy.random.randint(N, size=int(N*between_noise))
+			for j in range(i,i+blockSize):
+				if j < D:
+					if association_type == "parabola":
+						Y[j]= [common_base[l,k]*common_base[l,k]  + within_noise *math.sqrt(math.fabs(numpy.random.uniform(low=-1,high=1 ,size=1))) for k in range(N)]
+					elif association_type == "linear":
+						Y[j]= [common_base[l,k]  + within_noise * numpy.random.uniform(low=-1,high=1 ,size=1) for k in range(N)]
+					for index,b in enumerate(noise_num):
+						Y[j][b] = Y[j][index]
+			l += 1
+		for r in range(0,B+1):
+			for i, j in itertools.product(assoc[r], assoc[r]):
+				A[i][j] = 1
+		return X,Y,A
+	def balanced_synthetic_dataset_norm( self, D, N, B, within_noise = 0.5, between_noise = 0.1, association_type = 'parabola' ):
+		"""
+			D: int
+				number of features
+
+			N: int
+				number of samples 
+
+			B: int
+				number of blocks 
+		"""
+		X = numpy.random.normal(0, 1,size=(D,N))
+		common_base = numpy.random.normal(0, 1,size=(B+1,N))
+		Y = numpy.random.normal(0, 1,size=(D,N))
+		A = numpy.zeros( (len(X),len(Y)) )
+		blockSize = int(round(D/B+.5))
+		print D, B, blockSize
+		assoc = [[] for i in range((B+1))]
+		l = 0
+		for i in range(0,D,blockSize):
+			for j in range(i,i+blockSize):
+				if j < D:
+					X[j]= [common_base[l,k]  + numpy.random.normal(0, within_noise, size=1) for k in range(N)]
+					assoc[l].append(j)
+			l += 1
+		from random import randrange
+		l= 0
+		for i in range(0,D,blockSize):
+			noise_num = numpy.random.randint(N, size=int(N*between_noise))
+			for j in range(i,i+blockSize):
+				if j < D:
+					#print j, i
+					Y[j]= [common_base[l,k]  + numpy.random.normal(0, within_noise,size=1) for k in range(N)]
+					for index,b in enumerate(noise_num):
+						Y[j][b] = Y[j][index]#print l
+			l += 1
+				
+		for r in range(0,B+1):
+			for i, j in itertools.product(assoc[r], assoc[r]):
+				A[i][j] = 1
 		return X,Y,A	
 	def double_cholesky_block( self, D, N, B, fVal = 0.5, Beta = 0.5 ):
 		"""
