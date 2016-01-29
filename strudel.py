@@ -2122,6 +2122,7 @@ class Strudel:
 		from random import randrange
 		l= 0
 		for i in range(0,D,blockSize):
+			numpy.random.seed(0)
 			noise_num = numpy.random.randint(N, size=int(N*between_noise))
 			for j in range(i,i+blockSize):
 				if j < D:
@@ -2136,7 +2137,7 @@ class Strudel:
 			for i, j in itertools.product(assoc[r], assoc[r]):
 				A[i][j] = 1
 		return X,Y,A
-	def balanced_synthetic_dataset_norm( self, D, N, B, within_noise = 0.5, between_noise = 0.1, association_type = 'parabola' ):
+	def balanced_synthetic_dataset_norm( self, D, N, B, within_noise = 0.5, between_noise = 0.1, cluster_percentage = 1, association_type = 'parabola' ):
 		"""
 			D: int
 				number of features
@@ -2155,26 +2156,90 @@ class Strudel:
 		print D, B, blockSize
 		assoc = [[] for i in range((B+1))]
 		l = 0
-		for i in range(0,D,blockSize):
+		for i in range(0, int(D*cluster_percentage), blockSize):
+			numpy.random.seed()
 			for j in range(i,i+blockSize):
-				if j < D:
+				if j < D :
 					X[j]= [common_base[l,k]  + numpy.random.normal(0, within_noise, size=1) for k in range(N)]
 					assoc[l].append(j)
 			l += 1
 		from random import randrange
 		l= 0
-		for i in range(0,D,blockSize):
-			noise_num = numpy.random.randint(N, size=int(N*between_noise))
+		for i in range(0, int(D*cluster_percentage), blockSize):
+			#print N, int(N*between_noise)
+			numpy.random.seed()
+			noise_num = numpy.random.randint(N, size= int(N*between_noise) )
+			#print noise_num
 			for j in range(i,i+blockSize):
-				if j < D:
+				if j < D :
 					#print j, i
 					Y[j]= [common_base[l,k]  + numpy.random.normal(0, within_noise,size=1) for k in range(N)]
 					for index,b in enumerate(noise_num):
 						Y[j][b] = Y[j][index]#print l
 			l += 1
-				
+			
 		for r in range(0,B+1):
 			for i, j in itertools.product(assoc[r], assoc[r]):
+				A[i][j] = 1
+		return X,Y,A	
+	def imbalanced_synthetic_dataset_norm( self, D, N, B, within_noise = 0.5, between_noise = 0.1, association_type = 'parabola' ):
+		"""
+			D: int
+				number of features
+
+			N: int
+				number of samples 
+
+			B: int
+				number of blocks 
+		"""
+		X = numpy.random.normal(0, 1,size=(D,N))
+		X_base = numpy.random.normal(0, 1,size=(D,N))
+		common_base = numpy.random.normal(0, 1,size=(B+1,N))
+		Y = numpy.random.normal(0, 1,size=(D,N))
+		Y_base = numpy.random.normal(0, 1,size=(D,N))
+		A = numpy.zeros( (len(X),len(Y)) )
+		blockSize = int(round(D/B+.5))
+		#print D, B, blockSize
+		
+		
+		number_associated_blocks = max([int(B/4) , 1])
+		assoc1 = [[] for i in range(number_associated_blocks)]
+		assoc2 = [[] for i in range(number_associated_blocks)]
+		
+		from random import randrange
+		for i in range(D):
+			r = randrange(0,B)
+			X[i]= [X_base[r,k]  + within_noise * numpy.random.normal(0, within_noise, size=1) for k in range(N)]
+			
+		for i in range(D):
+			r = randrange(0,B)
+			Y[i]= [Y_base[r,k]  + within_noise * numpy.random.normal(0, within_noise, size=1) for k in range(N)]
+			
+		r = numpy.random.randint(D, size=int(blockSize* number_associated_blocks))
+		for i in r:
+			l= randrange(0,int(number_associated_blocks))
+			X[i]= [common_base[l][k] +  within_noise * numpy.random.normal(0, within_noise, size=1) for k in range(N)]
+			assoc1[l].append(i)
+		
+		noise_num = numpy.random.randint(N, size=int(N*between_noise))
+		for i in r:
+			l= randrange(0,int(number_associated_blocks))
+			#slope = 1.0 +numpy.random.random_sample()#slope = numpy.random.random_sample()
+			if association_type == "parabola":
+				Y[i]= [common_base[l][k] * common_base[l][k]  + within_noise * math.sqrt(math.fabs(numpy.random.normal(0, within_noise, size=1)))  for k in range(N)]
+				for index,b in enumerate(noise_num):
+					Y[i][b] = Y[i][index]
+				assoc2[l].append(i)
+			elif association_type == "linear":
+				Y[i]= [common_base[l][k] + within_noise * numpy.random.normal(0, within_noise, size=1)  for k in range(N)]
+				for index,b in enumerate(noise_num):
+					Y[i][b] = Y[i][index]
+				assoc2[l].append(i)
+
+		for a in range(number_associated_blocks):
+			#print assoc1[a], assoc2[a]
+			for i, j in itertools.product(assoc1[a], assoc2[a]):
 				A[i][j] = 1
 		return X,Y,A	
 	def double_cholesky_block( self, D, N, B, fVal = 0.5, Beta = 0.5 ):
