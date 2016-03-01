@@ -2094,7 +2094,7 @@ class Strudel:
 			for i, j in itertools.product(assoc1[a], assoc2[a]):
 				A[i][j] = 1
 		return X,Y,A
-	def balanced_synthetic_dataset_uniform( self, D, N, B, within_noise = 0.5, between_noise = 0.1, association_type = 'parabola' ):
+	def balanced_synthetic_dataset_uniform( self, D, N, B, within_noise = 0.5, between_noise = 0.1, cluster_percentage = 1, association_type = 'parabola' ):
 		"""
 			D: int
 				number of features
@@ -2113,7 +2113,7 @@ class Strudel:
 		print D, B, blockSize
 		assoc = [[] for i in range((B+1))]
 		l = 0
-		for i in range(0,D,blockSize):
+		for i in range(0,int(D*cluster_percentage),blockSize):
 			for j in range(i,i+blockSize):
 				if j < D:
 					X[j]= [common_base[l,k]  + within_noise * numpy.random.uniform(low=-1,high=1 ,size=1) for k in range(N)]
@@ -2121,7 +2121,7 @@ class Strudel:
 			l += 1
 		from random import randrange
 		l= 0
-		for i in range(0,D,blockSize):
+		for i in range(0,int(D*cluster_percentage),blockSize):
 			numpy.random.seed(0)
 			noise_num = numpy.random.randint(N, size=int(N*between_noise))
 			for j in range(i,i+blockSize):
@@ -2130,6 +2130,10 @@ class Strudel:
 						Y[j]= [common_base[l,k]*common_base[l,k]  + within_noise *math.sqrt(math.fabs(numpy.random.uniform(low=-1,high=1 ,size=1))) for k in range(N)]
 					elif association_type == "linear":
 						Y[j]= [common_base[l,k]  + within_noise * numpy.random.uniform(low=-1,high=1 ,size=1) for k in range(N)]
+					elif association_type == "sin":
+						Y[j]= Y[j]= [math.sin(common_base[l,k])  + within_noise *math.sqrt(math.fabs(numpy.random.uniform(low=-1,high=1 ,size=1))) for k in range(N)]
+					elif association_type == "log":
+						Y[j]= Y[j]= [math.log(math.fabs(common_base[l,k]))  + within_noise *math.sqrt(math.fabs(numpy.random.uniform(low=-1,high=1 ,size=1))) for k in range(N)]
 					for index,b in enumerate(noise_num):
 						Y[j][b] = Y[j][index]
 			l += 1
