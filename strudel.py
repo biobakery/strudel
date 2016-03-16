@@ -2094,6 +2094,7 @@ class Strudel:
 			for i, j in itertools.product(assoc1[a], assoc2[a]):
 				A[i][j] = 1
 		return X,Y,A
+	
 	def balanced_synthetic_dataset_uniform( self, D, N, B, within_noise = 0.5, between_noise = 0.1, cluster_percentage = 1, association_type = 'parabola' ):
 		"""
 			D: int
@@ -2105,35 +2106,67 @@ class Strudel:
 			B: int
 				number of blocks 
 		"""
-		X = numpy.random.uniform(low=-1,high=1 ,size=(D,N))
-		common_base = numpy.random.uniform(low=-1,high=1 ,size=(B+1,N))
+		
+		
+		X = numpy.random.uniform(low=-1,high=1,size=(D,N))
 		Y = numpy.random.uniform(low=-1,high=1,size=(D,N))
 		A = numpy.zeros( (len(X),len(Y)) )
 		blockSize = int(round(D/B+.5))
 		print D, B, blockSize
+		if association_type == "L":
+			common_base = numpy.hstack((numpy.random.uniform(low=-1.0,high=-1.0 ,size=(B+1,N/2)), numpy.random.uniform(low=-1,high=50 ,size=(B+1,N/2))))
+			for l in range(B+1):
+				common_base[l]= numpy.random.permutation(common_base[l])
+		else:
+			common_base = numpy.random.uniform(low=-1,high=1 ,size=(B+1,N))
 		assoc = [[] for i in range((B+1))]
 		l = 0
 		for i in range(0,int(D*cluster_percentage),blockSize):
 			for j in range(i,i+blockSize):
 				if j < D:
-					X[j]= [common_base[l,k]  + within_noise * numpy.random.uniform(low=-1,high=1 ,size=1) for k in range(N)]
+					numpy.random.seed(j)
+					if association_type == "L":
+						X[j]= [common_base[l,k]  for k in range(N)]
+					elif association_type == "log":
+						X[j]= [math.fabs(common_base[l,k])  + within_noise * numpy.random.uniform(low=0,high=1 ,size=1) for k in range(N)]
+					else:	
+						X[j]= [common_base[l,k]  + within_noise * numpy.random.uniform(low=-1,high=1 ,size=1) for k in range(N)]
 					assoc[l].append(j)
 			l += 1
-		from random import randrange
+		if association_type == "L":
+			common_base_Y = numpy.random.uniform(low=-1,high=1 ,size=(B+1,N))
+			for l in range(B+1):
+				common_base_Y[l] = [numpy.random.uniform(low=l,high=100, size=1)  if common_base[l,k] < -0.999 else numpy.random.uniform(low=l,high=l, size=1) for k in range(N)]
+
 		l= 0
 		for i in range(0,int(D*cluster_percentage),blockSize):
-			numpy.random.seed(0)
+			numpy.random.seed()
 			noise_num = numpy.random.randint(N, size=int(N*between_noise))
 			for j in range(i,i+blockSize):
 				if j < D:
+					numpy.random.seed()
 					if association_type == "parabola":
 						Y[j]= [common_base[l,k]*common_base[l,k]  + within_noise *math.sqrt(math.fabs(numpy.random.uniform(low=-1,high=1 ,size=1))) for k in range(N)]
-					elif association_type == "linear":
+					elif association_type == "line":
 						Y[j]= [common_base[l,k]  + within_noise * numpy.random.uniform(low=-1,high=1 ,size=1) for k in range(N)]
-					elif association_type == "sin":
-						Y[j]= Y[j]= [math.sin(common_base[l,k])  + within_noise *math.sqrt(math.fabs(numpy.random.uniform(low=-1,high=1 ,size=1))) for k in range(N)]
+					elif association_type == "sine":
+						Y[j]= [.5* math.sin(math.pi * common_base[l,k]*1.5)  + within_noise * numpy.random.uniform(low=-1,high=1 ,size=1)  for k in range(N)]
 					elif association_type == "log":
-						Y[j]= Y[j]= [math.log(math.fabs(common_base[l,k]))  + within_noise *math.sqrt(math.fabs(numpy.random.uniform(low=-1,high=1 ,size=1))) for k in range(N)]
+						Y[j]= [math.log(math.fabs(common_base[l,k]))  + within_noise *math.sqrt(math.fabs(numpy.random.uniform(low=0,high=1 ,size=1))) for k in range(N)]
+					elif association_type == "step":
+						p1 = numpy.percentile(common_base[l], 25)
+						p2 = numpy.percentile(common_base[l], 50)
+						p3 = numpy.percentile(common_base[l], 75)
+						#NOISE = within_noise *numpy.random.uniform(low=-1,high=1 ,size=1)
+						#Y[j]= [ 0 if common_base[l,k] <p1 else  1 + within_noise *numpy.random.uniform(low=-1,high=1 ,size=1)\
+						#	 if common_base[l,k] <p2 else 2+within_noise *numpy.random.uniform(low=-1,high=1 ,size=1)\
+						#	 if common_base[l,k] <p3 else 3 + within_noise *numpy.random.uniform(low=-1,high=1 ,size=1)  for k in range(N)]
+						Y[j]= [ 2.0 +within_noise *numpy.random.uniform(low=-1,high=1 ,size=1) if common_base[l,k] < p1 else  0.0 + within_noise *numpy.random.uniform(low=-1,high=1 ,size=1)\
+							if common_base[l,k] < p2 else  3.0 + within_noise *numpy.random.uniform(low=-1,high=1 ,size=1) if common_base[l,k] < p3  else
+							0.0 + within_noise *numpy.random.uniform(low=-1,high=1 ,size=1) for k in range(N)]
+					elif association_type == "L":
+						Y[j] = [ common_base_Y[l,k] + within_noise * numpy.random.uniform(low=0,high=0, size=1) for k in range(N)]
+						#Y[j]= [ numpy.random.uniform(low=10,high=100, size=1) * common_base[l,k] if common_base[l,k] < -0.8 else numpy.random.uniform(low=.2,high=.5, size=1) for k in range(N)]
 					for index,b in enumerate(noise_num):
 						Y[j][b] = Y[j][index]
 			l += 1
@@ -2228,6 +2261,7 @@ class Strudel:
 		
 		noise_num = numpy.random.randint(N, size=int(N*between_noise))
 		for i in r:
+			numpy.random.seed()
 			l= randrange(0,int(number_associated_blocks))
 			#slope = 1.0 +numpy.random.random_sample()#slope = numpy.random.random_sample()
 			if association_type == "parabola":
