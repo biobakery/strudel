@@ -2126,7 +2126,7 @@ class Strudel:
 				if j < D:
 					numpy.random.seed(j)
 					if association_type == "L":
-						X[j]= [common_base[l,k]  for k in range(N)]
+						X[j]= [common_base[l,k]+ within_noise * numpy.random.uniform(low=-.1,high=.1, size=1) for k in range(N)]
 					elif association_type == "log":
 						X[j]= [math.fabs(common_base[l,k])  + within_noise * numpy.random.uniform(low=0,high=1 ,size=1) for k in range(N)]
 					else:	
@@ -2152,7 +2152,7 @@ class Strudel:
 					elif association_type == "sine":
 						Y[j]= [.5* math.sin(math.pi * common_base[l,k]*1.5)  + within_noise * numpy.random.uniform(low=-1,high=1 ,size=1)  for k in range(N)]
 					elif association_type == "log":
-						Y[j]= [math.log(math.fabs(common_base[l,k]))  + within_noise *math.sqrt(math.fabs(numpy.random.uniform(low=0,high=1 ,size=1))) for k in range(N)]
+						Y[j]= [math.log(math.fabs(common_base[l,k]))  + within_noise *math.fabs(numpy.random.uniform(low=0,high=1 ,size=1)) for k in range(N)]
 					elif association_type == "step":
 						p1 = numpy.percentile(common_base[l], 25)
 						p2 = numpy.percentile(common_base[l], 50)
@@ -2165,7 +2165,7 @@ class Strudel:
 							if common_base[l,k] < p2 else  3.0 + within_noise *numpy.random.uniform(low=-1,high=1 ,size=1) if common_base[l,k] < p3  else
 							0.0 + within_noise *numpy.random.uniform(low=-1,high=1 ,size=1) for k in range(N)]
 					elif association_type == "L":
-						Y[j] = [ common_base_Y[l,k] + within_noise * numpy.random.uniform(low=0,high=0, size=1) for k in range(N)]
+						Y[j] = [ common_base_Y[l,k] + within_noise * numpy.random.uniform(low=-.1,high=.1, size=1) for k in range(N)]
 						#Y[j]= [ numpy.random.uniform(low=10,high=100, size=1) * common_base[l,k] if common_base[l,k] < -0.8 else numpy.random.uniform(low=.2,high=.5, size=1) for k in range(N)]
 					for index,b in enumerate(noise_num):
 						Y[j][b] = Y[j][index]
