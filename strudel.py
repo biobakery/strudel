@@ -555,7 +555,7 @@ class Strudel:
 		c[0::2] = a
 		c[1::2] = b
 		return c 
-
+	
 	#========================================#
 	# Presets 
 	#========================================#
@@ -1790,7 +1790,43 @@ class Strudel:
 	**** Normal mixture model (clusters), linear spikes
 	**** Normal random, no cluster structure, sine spike
 	"""
-
+	def happyface(self,x):
+		# Head
+		arch = math.sqrt(1.0 - x*x)
+		components = [arch, -arch]
+		
+		# Eyes
+		eyeWidth = 0.2
+		eyeHeight = eyeWidth * 0.6
+		eyeX = 1.0 / 3.0
+		eyeY = 0.25
+		eyeCoord = (abs(x) - eyeX) / eyeWidth
+		if eyeCoord > -1.0 and eyeCoord < 1.0:
+			eyeArch = math.sqrt(1.0 - eyeCoord*eyeCoord)
+			components.append(eyeY + eyeHeight * eyeArch)
+			#components.append(eyeY - eyeHeight * eyeArch)
+		
+		# Mouth
+		mouthRads = math.pi * 0.7
+		mouthLowerRadius = 0.85
+		mouthUpperRadius = 3
+		mouthYoffset = 0.15
+		mouthW2 = mouthLowerRadius * math.sin(mouthRads / 2.0)
+		if abs(x) < mouthW2:
+			# Lower lip
+			mouthLowerCoord = x / mouthLowerRadius
+			mouthLowerArch = math.sqrt(1.0 - mouthLowerCoord*mouthLowerCoord)
+			components.append(-mouthLowerRadius*mouthLowerArch + mouthYoffset)
+			
+			# Upper lip
+			mouthUpperH = math.sqrt(mouthUpperRadius*mouthUpperRadius - mouthW2*mouthW2) - mouthLowerRadius * math.cos(mouthRads / 2.0)
+			mouthUpperCoord = x / mouthUpperRadius
+			mouthUpperArch = math.sqrt(1.0 - mouthUpperCoord*mouthUpperCoord)
+			components.append(mouthUpperH - mouthUpperRadius*mouthUpperArch + mouthYoffset)
+	
+		# Pick one of the components
+		i = numpy.random.randint( len(components), size = 1)
+		return components[i]
 	def intraspike( self, sparsity, method, distribution_type = "mixture" ):
 		pass
 
@@ -2161,12 +2197,15 @@ class Strudel:
 						#Y[j]= [ 0 if common_base[l,k] <p1 else  1 + within_noise *numpy.random.uniform(low=-1,high=1 ,size=1)\
 						#	 if common_base[l,k] <p2 else 2+within_noise *numpy.random.uniform(low=-1,high=1 ,size=1)\
 						#	 if common_base[l,k] <p3 else 3 + within_noise *numpy.random.uniform(low=-1,high=1 ,size=1)  for k in range(N)]
-						Y[j]= [ 2.0 +within_noise *numpy.random.uniform(low=-1,high=1 ,size=1) if common_base[l,k] < p1 else  0.0 + within_noise *numpy.random.uniform(low=-1,high=1 ,size=1)\
+						Y[j]= [ 2.0 +within_noise *numpy.random.uniform(low=-1,high=1 ,size=1) if common_base[l,k] < p1 else  1.0 + within_noise *numpy.random.uniform(low=-1,high=1 ,size=1)\
 							if common_base[l,k] < p2 else  3.0 + within_noise *numpy.random.uniform(low=-1,high=1 ,size=1) if common_base[l,k] < p3  else
 							0.0 + within_noise *numpy.random.uniform(low=-1,high=1 ,size=1) for k in range(N)]
 					elif association_type == "L":
 						Y[j] = [ common_base_Y[l,k] + within_noise * numpy.random.uniform(low=-.1,high=.1, size=1) for k in range(N)]
 						#Y[j]= [ numpy.random.uniform(low=10,high=100, size=1) * common_base[l,k] if common_base[l,k] < -0.8 else numpy.random.uniform(low=.2,high=.5, size=1) for k in range(N)]
+					elif association_type =="happyface":
+						Y[j] = [ self.happyface(common_base[l,k]) + within_noise * numpy.random.uniform(low=-.1,high=.1, size=1) for k in range(N)]
+						
 					for index,b in enumerate(noise_num):
 						Y[j][b] = Y[j][index]
 			l += 1
@@ -2455,7 +2494,7 @@ class Strudel:
 
 		return X,Y,A	
 
-
+	
 	def generate_block( self, D, N, preset = "easy", spike_type = "line" ):
 		"""
 		Generate block covariance structure within each dataset (e.g. X, Y)
