@@ -2066,6 +2066,17 @@ class Strudel:
 		Y = numpy.random.uniform(low=-1,high=1,size=(D,N))
 		A = numpy.zeros( (D,D) )
 		return X,Y,A	
+	def orthogonalize_matrix(self, w):
+		#from scipy.linalg import sqrtm, inv
+		import numpy as np
+		from numpy.linalg import svd
+		#return w.dot(inv(sqrtm(w.T.dot(w))))
+		U, s, V =  svd(w.T, full_matrices=False)
+		S = numpy.diag(s)
+		#print U.shape, V.shape, s.shape
+		#print (numpy.dot(U,S)).shape
+		#print np.allclose(w.T, np.dot(U, np.dot(S, V)))
+		return numpy.dot(U,S).T
 	def imbalanced_synthetic_dataset_uniform(self, D, N, B, within_noise = 0.5, between_noise = 0.5, association_type = 'parabola' ):
 		"""
 			D: int
@@ -2080,6 +2091,7 @@ class Strudel:
 		
 		X = numpy.random.uniform(low=-1,high=1 ,size=(D,N))
 		common_base = numpy.random.uniform(low=-1,high=1 ,size=(B+1,N))
+		common_base = self.orthogonalize_matrix(common_base)
 		X_base = numpy.random.uniform(low=-1,high=1 ,size=(D,N))
 		Y_base = numpy.random.uniform(low=-1,high=1 ,size=(D,N))
 		Y = numpy.random.uniform(low=-1,high=1,size=(D,N))
@@ -2155,6 +2167,7 @@ class Strudel:
 				common_base[l]= numpy.random.permutation(common_base[l])
 		else:
 			common_base = numpy.random.uniform(low=-1,high=1 ,size=(B+1,N))
+		common_base = self.orthogonalize_matrix(common_base)
 		assoc = [[] for i in range((B+1))]
 		l = 0
 		for i in range(0,int(D*cluster_percentage),blockSize):
@@ -2226,6 +2239,7 @@ class Strudel:
 		"""
 		X = numpy.random.normal(0, 1,size=(D,N))
 		common_base = numpy.random.normal(0, 1,size=(B+1,N))
+		common_base = self.orthogonalize_matrix(common_base)
 		Y = numpy.random.normal(0, 1,size=(D,N))
 		A = numpy.zeros( (len(X),len(Y)) )
 		blockSize = int(round(D/B+.5))
@@ -2272,6 +2286,7 @@ class Strudel:
 		X = numpy.random.normal(0, 1,size=(D,N))
 		X_base = numpy.random.normal(0, 1,size=(D,N))
 		common_base = numpy.random.normal(0, 1,size=(B+1,N))
+		common_base = self.orthogonalize_matrix(common_base)
 		Y = numpy.random.normal(0, 1,size=(D,N))
 		Y_base = numpy.random.normal(0, 1,size=(D,N))
 		A = numpy.zeros( (len(X),len(Y)) )
