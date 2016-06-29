@@ -2207,7 +2207,7 @@ class Strudel:
 		blockSize = int(round(D/B+.5))
 		print D, B, blockSize
 		if association_type == "L":
-			common_base = numpy.hstack((numpy.random.uniform(low=-1.0,high=-1.0 ,size=(B+1,N/2)), numpy.random.uniform(low=-1,high=50 ,size=(B+1,N/2))))
+			common_base = numpy.hstack((numpy.random.uniform(low=-1.0,high=-1.0 ,size=(B+1,N/2)), numpy.random.uniform(low=-1,high=10 ,size=(B+1,N/2))))
 			for l in range(B+1):
 				common_base[l]= numpy.random.permutation(common_base[l])
 		else:
@@ -2231,7 +2231,7 @@ class Strudel:
 		if association_type == "L":
 			common_base_Y = numpy.random.uniform(low=-1,high=1 ,size=(B+1,N))
 			for l in range(B+1):
-				common_base_Y[l] = [numpy.random.uniform(low=l,high=100, size=1)  if common_base[l,k] < -0.999 else numpy.random.uniform(low=l,high=l, size=1) for k in range(N)]
+				common_base_Y[l] = [numpy.random.uniform(low=l,high=10, size=1)  if common_base[l,k] < -0.999 else l+ within_noise * numpy.random.uniform(low=-.1,high=.1, size=1) for k in range(N)]
 
 		l= 0
 		for i in range(0,int(D*cluster_percentage),blockSize):
