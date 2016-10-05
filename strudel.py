@@ -72,6 +72,7 @@ import csv
 import sys 
 import itertools
 import math 
+import time
 
 ####### namespace for distributions 
 from scipy.stats import invgamma, norm, uniform, logistic, gamma, lognorm, beta, pareto, pearsonr  
@@ -2062,6 +2063,7 @@ class Strudel:
 			B: int
 				number of blocks 
 		"""
+		#numpy.random.seed(time.time(0))
 		X = numpy.random.uniform(low=-1,high=1 ,size=(D,N))
 		Y = numpy.random.uniform(low=-1,high=1,size=(D,N))
 		A = numpy.zeros( (D,D) )
@@ -2138,7 +2140,7 @@ class Strudel:
 		#r = numpy.random.randint(D, size=int(D*cluster_percentage))
 		for i in range(int(D*cluster_percentage)):
 			l= randrange(0,number_associated_blocks)
-			numpy.random.seed()
+			#numpy.random.seed(time.time(0))
 			if association_type == "L":
 						X[i]= [common_base[l,k]+ within_noise * numpy.random.uniform(low=-.1,high=.1, size=1) for k in range(N)]
 			elif association_type == "log":
@@ -2152,7 +2154,7 @@ class Strudel:
 		for i in  range(int(D*cluster_percentage)):
 			l= randrange(0,number_associated_blocks)
 			#slope = 1.0 +numpy.random.random_sample()#slope = numpy.random.random_sample()
-			numpy.random.seed()
+			#numpy.random.seed(time.time(0))
 			if association_type == "parabola":
 				Y[i]= [common_base[l,k]*common_base[l,k]  + within_noise *math.sqrt(math.fabs(numpy.random.uniform(low=-1,high=1 ,size=1))) for k in range(N)]
 			elif association_type == "line":
@@ -2219,7 +2221,7 @@ class Strudel:
 		for i in range(0,int(D*cluster_percentage),blockSize):
 			for j in range(i,i+blockSize):
 				if j < D:
-					numpy.random.seed(j)
+					#numpy.random.seed(time.time(0))
 					if association_type == "L":
 						X[j]= [common_base[l,k]+ within_noise * numpy.random.uniform(low=-.1,high=.1, size=1) for k in range(N)]
 					elif association_type == "log":
@@ -2231,15 +2233,15 @@ class Strudel:
 		if association_type == "L":
 			common_base_Y = numpy.random.uniform(low=-1,high=1 ,size=(B+1,N))
 			for l in range(B+1):
-				common_base_Y[l] = [numpy.random.uniform(low=l,high=10, size=1)  if common_base[l,k] < -0.999 else l+ within_noise * numpy.random.uniform(low=-.1,high=.1, size=1) for k in range(N)]
+				common_base_Y[l] = [numpy.random.uniform(low=l,high=10, size=1)  if common_base[l,k] < -0.99 else l+ within_noise * numpy.random.uniform(low=-.1,high=.1, size=1) for k in range(N)]
 
 		l= 0
 		for i in range(0,int(D*cluster_percentage),blockSize):
-			numpy.random.seed()
+			#numpy.random.seed(time.time(0))
 			noise_num = numpy.random.randint(N, size=int(N*between_noise))
 			for j in range(i,i+blockSize):
 				if j < D:
-					numpy.random.seed()
+					#numpy.random.seed(time.time(0))
 					if association_type == "parabola":
 						Y[j]= [common_base[l,k]*common_base[l,k]  + within_noise *math.sqrt(math.fabs(numpy.random.uniform(low=-1,high=1 ,size=1))) for k in range(N)]
 					elif association_type == "line":
@@ -2293,7 +2295,7 @@ class Strudel:
 		assoc = [[] for i in range((B+1))]
 		l = 0
 		for i in range(0, int(D*cluster_percentage), blockSize):
-			numpy.random.seed()
+			#numpy.random.seed(time.time(0))
 			for j in range(i,i+blockSize):
 				if j < D :
 					X[j]= [common_base[l,k]  + numpy.random.normal(0, within_noise, size=1) for k in range(N)]
@@ -2303,7 +2305,7 @@ class Strudel:
 		l= 0
 		for i in range(0, int(D*cluster_percentage), blockSize):
 			#print N, int(N*between_noise)
-			numpy.random.seed()
+			#numpy.random.seed(time.time(0))
 			noise_num = numpy.random.randint(N, size= int(N*between_noise) )
 			#print noise_num
 			for j in range(i,i+blockSize):
@@ -2361,7 +2363,7 @@ class Strudel:
 		
 		noise_num = numpy.random.randint(N, size=int(N*between_noise))
 		for i in r:
-			numpy.random.seed()
+			#numpy.random.seed(time.time(0))
 			l= randrange(0,int(number_associated_blocks))
 			#slope = 1.0 +numpy.random.random_sample()#slope = numpy.random.random_sample()
 			if association_type == "parabola":
