@@ -63,7 +63,7 @@ Dependencies
 Getting Strudel
 --------------------------------------------
 
-Strudel can be downloaded from its bitbucket repository: http://bitbucket.org/chuttenh/strudel.
+Strudel can be downloaded from its bitbucket repository: https://github.com/biobakery/strudel
 
 Example Usage 
 ============================================ 
